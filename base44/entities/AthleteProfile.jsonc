@@ -1,0 +1,77 @@
+{
+  "name": "AthleteProfile",
+  "type": "object",
+  "properties": {
+    "athlete_email": {
+      "type": "string",
+      "description": "Email de l'athl\u00e8te"
+    },
+    "athlete_name": {
+      "type": "string",
+      "description": "Nom de l'athl\u00e8te"
+    },
+    "first_name": {
+      "type": "string",
+      "description": "Pr\u00e9nom de l'athl\u00e8te"
+    },
+    "last_name": {
+      "type": "string",
+      "description": "Nom de famille de l'athl\u00e8te"
+    },
+    "birth_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date de naissance de l'athl\u00e8te"
+    },
+    "sport": {
+      "type": "string",
+      "description": "Sport pratiqu\u00e9"
+    },
+    "volume_hebdomadaire": {
+      "type": "string",
+      "description": "Volume d'entra\u00eenement hebdomadaire"
+    },
+    "projet": {
+      "type": "string",
+      "description": "Projet sportif"
+    },
+    "age": {
+      "type": "number",
+      "description": "\u00c2ge"
+    },
+    "niveau": {
+      "type": "string",
+      "enum": [
+        "d\u00e9butant",
+        "interm\u00e9diaire",
+        "avanc\u00e9",
+        "\u00e9lite"
+      ],
+      "description": "Niveau sportif"
+    },
+    "objectifs": {
+      "type": "string",
+      "description": "Objectifs \u00e0 court et moyen terme"
+    },
+    "historique_blessures": {
+      "type": "string",
+      "description": "Historique des blessures"
+    },
+    "notes_coach": {
+      "type": "string",
+      "description": "Notes du coach (visible uniquement par l'admin)"
+    },
+    "assigned_coach_emails": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Emails des entra\u00eeneurs assign\u00e9s \u00e0 cet athl\u00e8te par l'administrateur"
+    }
+  },
+  "required": [
+    "athlete_email",
+    "athlete_name"
+  ]
+}

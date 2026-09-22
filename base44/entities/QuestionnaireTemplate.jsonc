@@ -1,0 +1,174 @@
+{
+  "name": "QuestionnaireTemplate",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nom du questionnaire"
+    },
+    "description": {
+      "type": "string",
+      "description": "Description du questionnaire"
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "athleteLabel": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "number",
+              "scale",
+              "select",
+              "textarea"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "condition": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "questionId": {
+                "type": "string"
+              },
+              "expectedValue": {
+                "type": "string"
+              }
+            }
+          },
+          "selectOptions": {
+            "type": "object",
+            "properties": {
+              "choices": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "image": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "scaleOptions": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "reversed": {
+                "type": "boolean"
+              },
+              "showNumbers": {
+                "type": "boolean"
+              },
+              "minLabel": {
+                "type": "string"
+              },
+              "maxLabel": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "description": "Questions du questionnaire"
+    },
+    "created_by_email": {
+      "type": "string",
+      "description": "Email du cr\u00e9ateur"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Questionnaire actif ou non"
+    },
+    "style": {
+      "type": "object",
+      "properties": {
+        "headerImage": {
+          "type": "string"
+        }
+      },
+      "description": "Options de style du questionnaire"
+    },
+    "assigned_coaches": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Emails des entra\u00eeneurs assign\u00e9s (pour les templates master)"
+    },
+    "assigned_athletes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Emails des athl\u00e8tes assign\u00e9s"
+    },
+    "is_master_template": {
+      "type": "boolean",
+      "default": true,
+      "description": "Vrai si c'est le questionnaire original cr\u00e9\u00e9 par l'admin. Faux si c'est une copie pour un entra\u00eeneur/club."
+    },
+    "parent_master_template_id": {
+      "type": "string",
+      "description": "ID du questionnaire ma\u00eetre dont ce questionnaire est une copie. Null si c'est un template master."
+    },
+    "assigned_to_coach_email": {
+      "type": "string",
+      "description": "Email de l'entra\u00eeneur \u00e0 qui cette copie sp\u00e9cifique est assign\u00e9e."
+    },
+    "assigned_to_club_id": {
+      "type": "string",
+      "description": "ID du club \u00e0 qui cette copie sp\u00e9cifique est assign\u00e9e."
+    },
+    "last_modified_by_email": {
+      "type": "string",
+      "description": "Email de la derni\u00e8re personne ayant modifi\u00e9 ce questionnaire."
+    }
+  },
+  "required": [
+    "name",
+    "questions",
+    "created_by_email"
+  ]
+}

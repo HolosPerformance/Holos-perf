@@ -1,0 +1,42 @@
+{
+  "name": "Team",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nom de l'\u00e9quipe"
+    },
+    "club_id": {
+      "type": "string",
+      "description": "ID du club auquel l'\u00e9quipe appartient"
+    },
+    "athlete_emails": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Emails des athl\u00e8tes de cette \u00e9quipe"
+    },
+    "coach_emails": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Emails des entra\u00eeneurs assign\u00e9s \u00e0 cette \u00e9quipe"
+    },
+    "questionnaire_template_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "IDs des questionnaires sp\u00e9cifiquement assign\u00e9s \u00e0 cette \u00e9quipe"
+    }
+  },
+  "required": [
+    "name",
+    "club_id"
+  ]
+}

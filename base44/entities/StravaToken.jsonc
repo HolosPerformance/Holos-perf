@@ -1,0 +1,41 @@
+{
+  "name": "StravaToken",
+  "type": "object",
+  "properties": {
+    "athlete_email": {
+      "type": "string",
+      "description": "Email Base44 de l'athl\u00e8te (au moment de la connexion)"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "ID Base44 de l'utilisateur (cl\u00e9 stable, ind\u00e9pendante de l'email)"
+    },
+    "strava_athlete_id": {
+      "type": "string",
+      "description": "ID Strava de l'athl\u00e8te"
+    },
+    "access_token": {
+      "type": "string",
+      "description": "Token d'acc\u00e8s Strava"
+    },
+    "refresh_token": {
+      "type": "string",
+      "description": "Token de rafra\u00eechissement Strava"
+    },
+    "expires_at": {
+      "type": "number",
+      "description": "Timestamp d'expiration du token"
+    },
+    "strava_athlete_name": {
+      "type": "string",
+      "description": "Nom de l'athl\u00e8te Strava"
+    },
+    "strava_profile_picture": {
+      "type": "string",
+      "description": "URL de la photo de profil Strava"
+    }
+  },
+  "required": [
+    "athlete_email"
+  ]
+}

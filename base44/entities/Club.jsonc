@@ -1,0 +1,86 @@
+{
+  "name": "Club",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nom du club"
+    },
+    "main_team_name": {
+      "type": "string",
+      "description": "Nom personnalis\u00e9 de l'\u00e9quipe principale"
+    },
+    "logo_url": {
+      "type": "string",
+      "description": "URL du logo du club"
+    },
+    "primary_color": {
+      "type": "string",
+      "description": "Couleur principale du club (hex)"
+    },
+    "secondary_color": {
+      "type": "string",
+      "description": "Couleur secondaire du club (hex)"
+    },
+    "coach_emails": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Emails des entra\u00eeneurs du club"
+    },
+    "athlete_emails": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Emails des athl\u00e8tes du club"
+    },
+    "invite_links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        }
+      },
+      "default": [],
+      "description": "Liens d'invitation g\u00e9n\u00e9r\u00e9s"
+    },
+    "default_questionnaire_template_id": {
+      "type": "string",
+      "description": "ID du questionnaire par d\u00e9faut assign\u00e9 au club (d\u00e9pr\u00e9ci\u00e9)"
+    },
+    "default_questionnaire_template_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "IDs des questionnaires assign\u00e9s au club (\u00e9quipe principale)"
+    },
+    "can_access_subjective_data_page": {
+      "type": "boolean",
+      "default": true,
+      "description": "Acc\u00e8s \u00e0 la page donn\u00e9es subjectives pour les athl\u00e8tes du club"
+    },
+    "can_access_objective_data_page": {
+      "type": "boolean",
+      "default": true,
+      "description": "Acc\u00e8s \u00e0 la page donn\u00e9es objectives pour les athl\u00e8tes du club"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

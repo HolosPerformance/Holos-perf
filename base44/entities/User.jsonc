@@ -1,0 +1,67 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "user"
+      ],
+      "description": "R\u00f4le de l'utilisateur"
+    },
+    "user_status": {
+      "type": "string",
+      "enum": [
+        "athlete",
+        "coach",
+        "coach_pro",
+        "admin"
+      ],
+      "description": "Statut de l'utilisateur dans l'application"
+    },
+    "first_name": {
+      "type": "string",
+      "description": "Pr\u00e9nom"
+    },
+    "last_name": {
+      "type": "string",
+      "description": "Nom de famille"
+    },
+    "birth_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date de naissance"
+    },
+    "is_approved": {
+      "type": "boolean",
+      "default": false,
+      "description": "Compte approuv\u00e9 par l'admin"
+    },
+    "can_access_subjective_data_page": {
+      "type": "boolean",
+      "default": true,
+      "description": "Acc\u00e8s \u00e0 la page donn\u00e9es subjectives"
+    },
+    "can_access_objective_data_page": {
+      "type": "boolean",
+      "default": true,
+      "description": "Acc\u00e8s \u00e0 la page donn\u00e9es objectives"
+    },
+    "can_edit_assigned_questionnaires": {
+      "type": "boolean",
+      "default": true,
+      "description": "Peut modifier les questionnaires assign\u00e9s"
+    },
+    "can_access_club_view": {
+      "type": "boolean",
+      "default": false,
+      "description": "Entra\u00eeneur : acc\u00e8s \u00e0 la vue Club"
+    },
+    "can_access_individual_view": {
+      "type": "boolean",
+      "default": true,
+      "description": "Entra\u00eeneur : acc\u00e8s \u00e0 la vue Athl\u00e8tes individuels"
+    }
+  }
+}
