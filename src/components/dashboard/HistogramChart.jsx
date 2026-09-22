@@ -19,7 +19,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, advancedStats }) {
+export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, advancedStats, isZoomed = false }) {
   const calculateEMA = (values, period) => {
     const multiplier = 2 / (period + 1);
     let ema = null;
@@ -104,7 +104,7 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={height}>
-          <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: isZoomed ? 90 : 5, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
             <XAxis 
               dataKey="fullDate" 
@@ -146,7 +146,7 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
                 stroke={def.color}
                 strokeWidth={2}
                 strokeDasharray={def.dash}
-                label={{ value: def.label, position: 'right', fill: def.color, fontSize: 10 }}
+                label={isZoomed ? { value: `${def.label} (${metricStats[def.key]})`, position: 'right', fill: def.color, fontSize: 11, fontWeight: 600 } : undefined}
               />
             ))}
             <Bar dataKey="value" radius={[6, 6, 0, 0]} name="Valeur">

@@ -19,7 +19,8 @@ import AdvancedStatsToggle from '../components/dashboard/AdvancedStatsToggle';
 import { ADVANCED_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetricStats } from '@/lib/advancedStats';
 import {
   Users, Activity, TrendingUp, Calendar, Filter,
-  RefreshCw, ArrowLeft, Search, Zap, Download
+  RefreshCw, ArrowLeft, Search, Zap, Download,
+  ChevronDown, BoxSelect
 } from 'lucide-react';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -117,6 +118,7 @@ export default function CoachDashboard() {
   // clé de l'indicateur pour chaque histogramme).
   const [globalAdvancedStats, setGlobalAdvancedStats] = useState(EMPTY_ADVANCED_STATS);
   const [chartAdvancedStats, setChartAdvancedStats] = useState({});
+  const [showBoxplots, setShowBoxplots] = useState(false);
 
   useEffect(() => {
     if (user?.metric_colors) {
@@ -1114,6 +1116,7 @@ export default function CoachDashboard() {
                     endDate={endDate}
                     height={isZoomed ? zoomHeight : undefined}
                     advancedStats={getChartStats(key)}
+                    isZoomed={isZoomed}
                   />
                 )}
               </ZoomableChartCard>
@@ -1121,25 +1124,39 @@ export default function CoachDashboard() {
           </div>
         )}
 
-        {/* Boxplots : distribution par indicateur sur la période sélectionnée */}
+        {/* Boxplots : distribution par jour, par indicateur, repliable */}
         {logsWithLabels.length > 0 && Object.keys(athleteMetrics.labels).length > 0 && (
           <div className="mb-6">
-            <h3 className="font-semibold text-slate-800 mb-3">Distribution (boxplots)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(athleteMetrics.labels).map(([key, label]) => (
-                <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
-                  {(isZoomed, zoomHeight) => (
-                    <BoxPlotChart
-                      data={logsWithLabels}
-                      dataKey={key}
-                      title={label}
-                      color={athleteMetrics.colors[key]}
-                      height={isZoomed ? zoomHeight : undefined}
-                    />
-                  )}
-                </ZoomableChartCard>
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowBoxplots(v => !v)}
+              className="w-full flex items-center justify-between gap-2 p-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              <span className="font-semibold text-slate-800 flex items-center gap-2">
+                <BoxSelect className="w-4 h-4 text-slate-500" />
+                Boxplot
+              </span>
+              <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${showBoxplots ? 'rotate-180' : ''}`} />
+            </button>
+            {showBoxplots && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                {Object.entries(athleteMetrics.labels).map(([key, label]) => (
+                  <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
+                    {(isZoomed, zoomHeight) => (
+                      <BoxPlotChart
+                        data={logsWithLabels}
+                        dataKey={key}
+                        title={label}
+                        color={athleteMetrics.colors[key]}
+                        startDate={startDate}
+                        endDate={endDate}
+                        height={isZoomed ? zoomHeight : undefined}
+                      />
+                    )}
+                  </ZoomableChartCard>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
