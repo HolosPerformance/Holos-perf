@@ -670,6 +670,12 @@ export default function CoachDashboard() {
 
   const logsWithLabels = processedLogs;
 
+  // Logs bruts remappés (un log par saisie, sans agrégation à la médiane) :
+  // nécessaire pour les boxplots, qui doivent voir la répartition réelle des
+  // valeurs d'un jour (ex. tous les athlètes sélectionnés), pas juste la
+  // médiane déjà calculée par processedLogs quand plusieurs athlètes sont sélectionnés.
+  const rawFilteredLogs = filteredLogs.map(remapLogMetrics);
+
   // Remarques : commentaire libre du questionnaire d'entraînement classique,
   // et réponses aux questions de type texte libre des questionnaires personnalisés.
   const remarksList = useMemo(() => {
@@ -1144,7 +1150,7 @@ export default function CoachDashboard() {
                   <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
                     {(isZoomed, zoomHeight) => (
                       <BoxPlotChart
-                        data={logsWithLabels}
+                        data={rawFilteredLogs}
                         dataKey={key}
                         title={label}
                         color={athleteMetrics.colors[key]}
