@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import HistogramChart from '../components/dashboard/HistogramChart';
-import BoxPlotChart from '../components/dashboard/BoxPlotChart';
+import BoxPlotChart, { autoBoxplotGroupBy, LOW_COUNT } from '../components/dashboard/BoxPlotChart';
 import ZoomableChartCard from '../components/dashboard/ZoomableChartCard';
 import AdvancedAnalyses from '../components/dashboard/analysis/AdvancedAnalyses';
 import { CollapsibleAnalysis } from '../components/dashboard/analysis/AnalysisParts';
@@ -29,6 +29,8 @@ import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+
+const BOXPLOT_GROUP_LABELS = { day: 'Jour', week: 'Semaine', month: 'Mois' };
 
 const defaultSessionTypeColors = [
   'bg-blue-100 text-blue-700',
@@ -127,6 +129,8 @@ export default function CoachDashboard() {
   const [showSummaryStats, setShowSummaryStats] = useState(false);
   const [showHistograms, setShowHistograms] = useState(false);
   const [showBoxplots, setShowBoxplots] = useState(false);
+  // Regroupement des boxplots : null = automatique selon la longueur de la période
+  const [boxplotGroupByChoice, setBoxplotGroupByChoice] = useState(null);
   const [showRemarks, setShowRemarks] = useState(false);
 
   useEffect(() => {
@@ -701,6 +705,7 @@ export default function CoachDashboard() {
   // valeurs d'un jour (ex. tous les athlètes sélectionnés), pas juste la
   // médiane déjà calculée par processedLogs quand plusieurs athlètes sont sélectionnés.
   const rawFilteredLogs = filteredLogs.map(remapLogMetrics);
+  const boxplotGroupBy = boxplotGroupByChoice || autoBoxplotGroupBy(startDate, endDate);
 
   // Saisies pour les menus AFE / Analyse réseau (mémorisées : ces calculs sont
   // coûteux et ne doivent pas être relancés à chaque rendu du dashboard)
@@ -1206,14 +1211,42 @@ export default function CoachDashboard() {
           </CollapsibleAnalysis>
         )}
 
-        {/* Boxplots : distribution par jour, par indicateur, repliable */}
+        {/* Boxplots : distribution par jour, semaine ou mois, par indicateur, repliable */}
         {boxplotMetricEntries.length > 0 && (
           <CollapsibleAnalysis
             title="Boxplot"
             icon={BoxSelect}
+            badge={BOXPLOT_GROUP_LABELS[boxplotGroupBy]}
             open={showBoxplots}
             onToggle={() => setShowBoxplots(v => !v)}
           >
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <span className="text-sm font-medium text-slate-700">Regrouper par :</span>
+                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+                  {[
+                    [null, `Auto (${BOXPLOT_GROUP_LABELS[autoBoxplotGroupBy(startDate, endDate)].toLowerCase()})`],
+                    ['day', BOXPLOT_GROUP_LABELS.day],
+                    ['week', BOXPLOT_GROUP_LABELS.week],
+                    ['month', BOXPLOT_GROUP_LABELS.month],
+                  ].map(([value, label]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => setBoxplotGroupByChoice(value)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                        boxplotGroupByChoice === value ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Boîte : de Q1 à Q3 · trait : médiane · ◇ : moyenne · moustaches : jusqu'à 1,5 × l'écart interquartile · ○ : valeurs extrêmes ·
+                n : nombre de valeurs (boîte pâle si moins de {LOW_COUNT}) · <span className="text-amber-600">partiel</span> : semaine ou mois coupé par la période (bordure en pointillés).
+                Survolez une boîte pour le détail.
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {boxplotMetricEntries.map(([key, label]) => (
                   <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
@@ -1226,6 +1259,7 @@ export default function CoachDashboard() {
                         startDate={startDate}
                         endDate={endDate}
                         height={isZoomed ? zoomHeight : undefined}
+                        groupBy={boxplotGroupBy}
                       />
                     )}
                   </ZoomableChartCard>
