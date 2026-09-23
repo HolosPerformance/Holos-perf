@@ -12,6 +12,7 @@ import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import HistogramChart from '../components/dashboard/HistogramChart';
 import BoxPlotChart from '../components/dashboard/BoxPlotChart';
 import ZoomableChartCard from '../components/dashboard/ZoomableChartCard';
+import AdvancedAnalyses from '../components/dashboard/analysis/AdvancedAnalyses';
 import MetricSelector from '../components/dashboard/MetricSelector';
 import StatCard from '../components/dashboard/StatCard';
 import SummaryStatsTable from '../components/dashboard/SummaryStatsTable';
@@ -696,6 +697,22 @@ export default function CoachDashboard() {
   // médiane déjà calculée par processedLogs quand plusieurs athlètes sont sélectionnés.
   const rawFilteredLogs = filteredLogs.map(remapLogMetrics);
 
+  // Saisies pour les menus AFE / Analyse réseau (mémorisées : ces calculs sont
+  // coûteux et ne doivent pas être relancés à chaque rendu du dashboard)
+  const analysisAthleteLogs = useMemo(
+    () => userFilteredLogs.map(remapLogMetrics),
+    [userFilteredLogs, athleteMetrics.idToCanonical]
+  );
+  const analysisPeriodLogs = useMemo(
+    () => analysisAthleteLogs.filter(log =>
+      log.training_date >= startDate && log.training_date <= endDate && sessionTypeFilters.includes(log.session_type)),
+    [analysisAthleteLogs, startDate, endDate, sessionTypeFilters]
+  );
+  const analysisGlobalFilters = useMemo(
+    () => ({ startDate, endDate, sessionTypes: sessionTypeFilters }),
+    [startDate, endDate, sessionTypeFilters]
+  );
+
   // N'affiche un histogramme / boxplot que si l'indicateur a au moins une
   // valeur sur la période et les filtres courants.
   const metricsWithData = (logs) => Object.entries(athleteMetrics.labels)
@@ -1205,6 +1222,19 @@ export default function CoachDashboard() {
               </div>
             )}
           </div>
+        )}
+
+        {/* AFE et analyse réseau : admin uniquement */}
+        {isAdmin && Object.keys(athleteMetrics.labels).length > 0 && (
+          <AdvancedAnalyses
+            user={user}
+            periodLogs={analysisPeriodLogs}
+            athleteLogs={analysisAthleteLogs}
+            metricLabels={athleteMetrics.labels}
+            metricColors={athleteMetrics.colors}
+            sessionTypeLabels={dynamicSessionTypes.labels}
+            globalFilters={analysisGlobalFilters}
+          />
         )}
 
         {/* Remarques */}
