@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { parseISO, isAfter, differenceInDays } from 'date-fns';
+import { parseISO, differenceInDays } from 'date-fns';
 
 const calculateStats = (values) => {
   if (values.length === 0) return null;
@@ -35,7 +35,7 @@ const calculateStats = (values) => {
   };
 };
 
-export default function SummaryStatsTable({ data, metricLabels = {}, metricColors = {}, startDate, endDate, sessionTypeFilters = ['entrainement', 'competition', 'effort_type', 'off'] }) {
+export default function SummaryStatsTable({ data, metricLabels = {}, metricColors = {}, startDate, endDate, sessionTypeFilters = ['entrainement', 'competition', 'effort_type', 'off'], showTitle = true }) {
   const [showPercentiles, setShowPercentiles] = useState(false);
 
   const filteredData = data.filter(log => {
@@ -46,7 +46,7 @@ export default function SummaryStatsTable({ data, metricLabels = {}, metricColor
     
     const start = parseISO(startDate);
     const end = parseISO(endDate);
-    const inDateRange = isAfter(logDate, start) && logDate <= end;
+    const inDateRange = logDate >= start && logDate <= end;
     
     return matchesSessionType && inDateRange;
   });
@@ -67,11 +67,13 @@ export default function SummaryStatsTable({ data, metricLabels = {}, metricColor
 
   return (
     <Card className="shadow-sm border-0">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Tableau récapitulatif</CardTitle>
-      </CardHeader>
-      
-      <CardContent>
+      {showTitle && (
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Tableau récapitulatif</CardTitle>
+        </CardHeader>
+      )}
+
+      <CardContent className={showTitle ? undefined : 'pt-6'}>
         <div className="mb-4 flex gap-6 text-sm">
           <span className="text-slate-600">
             <span className="font-semibold text-slate-800">{filteredData.length}</span> saisies

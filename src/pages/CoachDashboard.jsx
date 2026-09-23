@@ -13,6 +13,7 @@ import HistogramChart from '../components/dashboard/HistogramChart';
 import BoxPlotChart from '../components/dashboard/BoxPlotChart';
 import ZoomableChartCard from '../components/dashboard/ZoomableChartCard';
 import AdvancedAnalyses from '../components/dashboard/analysis/AdvancedAnalyses';
+import { CollapsibleAnalysis } from '../components/dashboard/analysis/AnalysisParts';
 import MetricSelector from '../components/dashboard/MetricSelector';
 import StatCard from '../components/dashboard/StatCard';
 import SummaryStatsTable from '../components/dashboard/SummaryStatsTable';
@@ -21,7 +22,7 @@ import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetric
 import {
   Users, Activity, TrendingUp, Calendar, Filter,
   RefreshCw, ArrowLeft, Search, Zap, Download,
-  ChevronDown, BoxSelect
+  BoxSelect, Table2, BarChart3, MessageSquare
 } from 'lucide-react';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -122,7 +123,11 @@ export default function CoachDashboard() {
   // clé de l'indicateur pour chaque histogramme).
   const [globalAdvancedStats, setGlobalAdvancedStats] = useState(EMPTY_ADVANCED_STATS);
   const [chartAdvancedStats, setChartAdvancedStats] = useState({});
+  // Menus repliables, fermés à chaque arrivée sur la page
+  const [showSummaryStats, setShowSummaryStats] = useState(false);
+  const [showHistograms, setShowHistograms] = useState(false);
   const [showBoxplots, setShowBoxplots] = useState(false);
+  const [showRemarks, setShowRemarks] = useState(false);
 
   useEffect(() => {
     if (user?.metric_colors) {
@@ -1077,18 +1082,6 @@ export default function CoachDashboard() {
           </CardContent>
         </Card>
 
-        {/* Summary Stats Table */}
-        <div className="mb-6">
-          <SummaryStatsTable 
-            data={userFilteredLogs}
-            metricLabels={athleteMetrics.labels}
-            metricColors={athleteMetrics.colors}
-            startDate={startDate}
-            endDate={endDate}
-            sessionTypeFilters={sessionTypeFilters}
-          />
-        </div>
-
         {/* Metric Selector */}
         {availableMetricEntries.length > 0 && (
           <Card className="shadow-sm border-0 mb-6">
@@ -1153,9 +1146,33 @@ export default function CoachDashboard() {
           </div>
         )}
 
-        {/* Histogram Charts Grid */}
+        {/* Statistiques descriptives, repliable */}
+        <CollapsibleAnalysis
+          title="Statistiques descriptives"
+          icon={Table2}
+          open={showSummaryStats}
+          onToggle={() => setShowSummaryStats(v => !v)}
+        >
+          <SummaryStatsTable
+            data={userFilteredLogs}
+            metricLabels={athleteMetrics.labels}
+            metricColors={athleteMetrics.colors}
+            startDate={startDate}
+            endDate={endDate}
+            sessionTypeFilters={sessionTypeFilters}
+            showTitle={false}
+          />
+        </CollapsibleAnalysis>
+
+        {/* Histogrammes, repliable */}
         {histogramMetricEntries.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <CollapsibleAnalysis
+            title="Histogrammes"
+            icon={BarChart3}
+            open={showHistograms}
+            onToggle={() => setShowHistograms(v => !v)}
+          >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {histogramMetricEntries.map(([key, label]) => (
               <ZoomableChartCard
                 key={key}
@@ -1186,24 +1203,18 @@ export default function CoachDashboard() {
               </ZoomableChartCard>
             ))}
           </div>
+          </CollapsibleAnalysis>
         )}
 
         {/* Boxplots : distribution par jour, par indicateur, repliable */}
         {boxplotMetricEntries.length > 0 && (
-          <div className="mb-6">
-            <button
-              type="button"
-              onClick={() => setShowBoxplots(v => !v)}
-              className="w-full flex items-center justify-between gap-2 p-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors shadow-sm"
-            >
-              <span className="font-semibold text-slate-800 flex items-center gap-2">
-                <BoxSelect className="w-4 h-4 text-slate-500" />
-                Boxplot
-              </span>
-              <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${showBoxplots ? 'rotate-180' : ''}`} />
-            </button>
-            {showBoxplots && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <CollapsibleAnalysis
+            title="Boxplot"
+            icon={BoxSelect}
+            open={showBoxplots}
+            onToggle={() => setShowBoxplots(v => !v)}
+          >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {boxplotMetricEntries.map(([key, label]) => (
                   <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
                     {(isZoomed, zoomHeight) => (
@@ -1220,8 +1231,7 @@ export default function CoachDashboard() {
                   </ZoomableChartCard>
                 ))}
               </div>
-            )}
-          </div>
+          </CollapsibleAnalysis>
         )}
 
         {/* AFE et analyse réseau : admin uniquement */}
@@ -1237,15 +1247,16 @@ export default function CoachDashboard() {
           />
         )}
 
-        {/* Remarques */}
+        {/* Remarques, repliable */}
+        <CollapsibleAnalysis
+          title="Remarques"
+          icon={MessageSquare}
+          badge={`${remarksList.length} remarque${remarksList.length > 1 ? 's' : ''}`}
+          open={showRemarks}
+          onToggle={() => setShowRemarks(v => !v)}
+        >
         <Card className="shadow-sm border-0">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Remarques</CardTitle>
-              <Badge variant="secondary">{remarksList.length} remarque{remarksList.length > 1 ? 's' : ''}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {remarksList.length === 0 ? (
               <p className="text-center text-sm text-slate-500 py-6">
                 Aucune remarque sur la période sélectionnée.
@@ -1267,6 +1278,7 @@ export default function CoachDashboard() {
             )}
           </CardContent>
         </Card>
+        </CollapsibleAnalysis>
       </div>
     </div>
   );
