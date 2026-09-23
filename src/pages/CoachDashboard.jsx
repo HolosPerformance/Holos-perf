@@ -16,7 +16,7 @@ import MetricSelector from '../components/dashboard/MetricSelector';
 import StatCard from '../components/dashboard/StatCard';
 import SummaryStatsTable from '../components/dashboard/SummaryStatsTable';
 import AdvancedStatsToggle from '../components/dashboard/AdvancedStatsToggle';
-import { ADVANCED_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetricStats } from '@/lib/advancedStats';
+import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetricStats } from '@/lib/advancedStats';
 import {
   Users, Activity, TrendingUp, Calendar, Filter,
   RefreshCw, ArrowLeft, Search, Zap, Download,
@@ -676,6 +676,13 @@ export default function CoachDashboard() {
   // médiane déjà calculée par processedLogs quand plusieurs athlètes sont sélectionnés.
   const rawFilteredLogs = filteredLogs.map(remapLogMetrics);
 
+  // N'affiche un histogramme / boxplot que si l'indicateur a au moins une
+  // valeur sur la période et les filtres courants.
+  const metricsWithData = (logs) => Object.entries(athleteMetrics.labels)
+    .filter(([key]) => logs.some(log => log[key] != null));
+  const histogramMetricEntries = metricsWithData(logsWithLabels);
+  const boxplotMetricEntries = metricsWithData(rawFilteredLogs);
+
   // Remarques : commentaire libre du questionnaire d'entraînement classique,
   // et réponses aux questions de type texte libre des questionnaires personnalisés.
   const remarksList = useMemo(() => {
@@ -802,7 +809,7 @@ export default function CoachDashboard() {
     const values = filteredLogs.map(l => l[metricKey]).filter(v => v != null);
     const stats = computeMetricStats(values);
     if (!stats) return [];
-    return ADVANCED_STAT_DEFS.filter(def => evolutionStats[def.key]).map(def => ({
+    return REFERENCE_STAT_DEFS.filter(def => evolutionStats[def.key]).map(def => ({
       id: `${metricKey}-${def.key}`,
       value: stats[def.key],
       color: def.color,
@@ -810,6 +817,7 @@ export default function CoachDashboard() {
       label: `${def.label} · ${athleteMetrics.labels[metricKey]}`,
     }));
   });
+  const evolutionEmaDefs = EMA_STAT_DEFS.filter(def => evolutionStats[def.key]);
 
   const toggleSessionTypeFilter = (type) => {
     setSessionTypeFilters(prev =>
@@ -1089,6 +1097,8 @@ export default function CoachDashboard() {
                   endDate={endDate}
                   height={isZoomed ? zoomHeight : undefined}
                   statLines={evolutionStatLines}
+                  emaDefs={evolutionEmaDefs}
+                  isZoomed={isZoomed}
                 />
               )}
             </ZoomableChartCard>
@@ -1096,9 +1106,9 @@ export default function CoachDashboard() {
         )}
 
         {/* Histogram Charts Grid */}
-        {logsWithLabels.length > 0 && Object.keys(athleteMetrics.labels).length > 0 && (
+        {histogramMetricEntries.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {Object.entries(athleteMetrics.labels).map(([key, label]) => (
+            {histogramMetricEntries.map(([key, label]) => (
               <ZoomableChartCard
                 key={key}
                 title={label}
@@ -1131,7 +1141,7 @@ export default function CoachDashboard() {
         )}
 
         {/* Boxplots : distribution par jour, par indicateur, repliable */}
-        {logsWithLabels.length > 0 && Object.keys(athleteMetrics.labels).length > 0 && (
+        {boxplotMetricEntries.length > 0 && (
           <div className="mb-6">
             <button
               type="button"
@@ -1146,7 +1156,7 @@ export default function CoachDashboard() {
             </button>
             {showBoxplots && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                {Object.entries(athleteMetrics.labels).map(([key, label]) => (
+                {boxplotMetricEntries.map(([key, label]) => (
                   <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
                     {(isZoomed, zoomHeight) => (
                       <BoxPlotChart
