@@ -114,7 +114,9 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
               domain={[0, 100]}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend />
+            {/* Légende limitée à 2 lignes (2 × 20px), défilable au-delà, pour que
+                les nombreuses séries de statistiques n'écrasent pas le graphique. */}
+            <Legend wrapperStyle={{ fontSize: 12, lineHeight: '20px', maxHeight: 40, overflowY: 'auto' }} />
             {competitionIndices.map((index) => (
               <ReferenceLine
                 key={`competition-${index}`}
