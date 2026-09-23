@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase as base44 } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useQuery } from '@tanstack/react-query';
@@ -106,6 +106,9 @@ export default function CoachDashboard() {
   const [startDate, setStartDate] = useState(() => getDefaultDates().start);
   const [endDate, setEndDate] = useState(() => getDefaultDates().end);
   const [selectedMetrics, setSelectedMetrics] = useState([]);
+  // Indique que la sélection par défaut doit être recalculée une fois connus
+  // les indicateurs ayant des données sur la période
+  const needsDefaultSelection = useRef(false);
   const [groupBy, setGroupBy] = useState('day');
   const [sessionTypeFilters, setSessionTypeFilters] = useState(['entrainement', 'competition', 'effort_type', 'off', 'inconnu']);
   const [demoData] = useState(() => generateDemoData());
@@ -556,7 +559,6 @@ export default function CoachDashboard() {
 
     const labels = {};
     const colors = {};
-    const metricKeys = [];
     const idToCanonical = {};
     let colorIdx = 0;
 
@@ -582,7 +584,6 @@ export default function CoachDashboard() {
       else if (label.includes('musculaire')) color = '#fb923c';
       else color = defaultColors[colorIdx % defaultColors.length];
       colors[canonicalKey] = color;
-      metricKeys.push(canonicalKey);
       colorIdx++;
     });
 
@@ -592,8 +593,27 @@ export default function CoachDashboard() {
     });
 
     setAthleteMetrics({ labels, colors, idToCanonical });
-    setSelectedMetrics(metricKeys.slice(0, Math.min(4, metricKeys.length)));
-  }, [userFilteredLogs, assignedTemplates, customColors, isAdmin, isCoach]);
+    // La sélection par défaut est appliquée plus bas, parmi les indicateurs
+    // ayant des données sur la période (voir availableMetricEntries)
+    needsDefaultSelection.current = true;
+    // customColors volontairement absent des dépendances : un changement de couleur
+    // ne doit pas réinitialiser les indicateurs sélectionnés (voir effet ci-dessous)
+  }, [userFilteredLogs, assignedTemplates, isAdmin, isCoach]);
+
+  // Appliquer les couleurs personnalisées sans toucher à la sélection des indicateurs
+  useEffect(() => {
+    setAthleteMetrics(prev => {
+      const colors = { ...prev.colors };
+      let changed = false;
+      Object.keys(colors).forEach(key => {
+        if (customColors[key] && colors[key] !== customColors[key]) {
+          colors[key] = customColors[key];
+          changed = true;
+        }
+      });
+      return changed ? { ...prev, colors } : prev;
+    });
+  }, [customColors]);
 
   const dateRange = { start: parseISO(startDate), end: parseISO(endDate) };
 
@@ -681,7 +701,18 @@ export default function CoachDashboard() {
   const metricsWithData = (logs) => Object.entries(athleteMetrics.labels)
     .filter(([key]) => logs.some(log => log[key] != null));
   const histogramMetricEntries = metricsWithData(logsWithLabels);
-  const boxplotMetricEntries = metricsWithData(rawFilteredLogs);
+  // Indicateurs proposés dans le sélecteur : même règle que les boxplots
+  const availableMetricEntries = metricsWithData(rawFilteredLogs);
+  const boxplotMetricEntries = availableMetricEntries;
+  const availableMetricKeysSignature = availableMetricEntries.map(([key]) => key).join('|');
+
+  // Sélection par défaut : les 4 premiers indicateurs ayant des données
+  useEffect(() => {
+    if (!needsDefaultSelection.current) return;
+    const keys = availableMetricKeysSignature ? availableMetricKeysSignature.split('|') : [];
+    setSelectedMetrics(keys.slice(0, 4));
+    if (keys.length > 0) needsDefaultSelection.current = false;
+  }, [availableMetricKeysSignature, athleteMetrics]);
 
   // Remarques : commentaire libre du questionnaire d'entraînement classique,
   // et réponses aux questions de type texte libre des questionnaires personnalisés.
@@ -1042,7 +1073,7 @@ export default function CoachDashboard() {
         </div>
 
         {/* Metric Selector */}
-        {Object.keys(athleteMetrics.labels).length > 0 && (
+        {availableMetricEntries.length > 0 && (
           <Card className="shadow-sm border-0 mb-6">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -1059,9 +1090,9 @@ export default function CoachDashboard() {
                 selected={selectedMetrics}
                 onChange={setSelectedMetrics}
                 onColorChange={handleColorChange}
-                metrics={Object.keys(athleteMetrics.labels).map(key => ({
+                metrics={availableMetricEntries.map(([key, label]) => ({
                   key,
-                  label: athleteMetrics.labels[key],
+                  label,
                   color: athleteMetrics.colors[key]
                 }))}
               />
