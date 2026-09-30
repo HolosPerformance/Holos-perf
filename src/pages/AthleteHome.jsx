@@ -25,6 +25,7 @@ import DailyQuestionnaire from '../components/questionnaire/DailyQuestionnaire';
 import CustomQuestionnaireForm from '../components/questionnaire/CustomQuestionnaireForm';
 import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import EventCalendar from '../components/calendar/EventCalendar';
+import PushNotificationPrompt from '../components/PushNotificationPrompt';
 import { format, parseISO, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useQueryClient } from '@tanstack/react-query';
@@ -618,6 +619,8 @@ export default function AthleteHome() {
             );
           })}
         </div>
+
+        <PushNotificationPrompt athleteEmail={user.email} />
 
         {/* Calendrier */}
         <div className="mt-12">

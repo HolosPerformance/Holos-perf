@@ -43,3 +43,43 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// ─── Notifications push ───────────────────────────────────────────────────────
+// Le message est émis par l'Edge Function `send-reminders`, signé VAPID.
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    // Charge utile illisible : on affiche tout de même quelque chose, car un
+    // `push` reçu sans notification visible fait révoquer l'abonnement.
+    data = {};
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Holos', {
+      body: data.body || '',
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-96x96.png',
+      tag: data.tag || 'holos-reminder',
+      data: { url: data.url || '/' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Réutiliser un onglet Holos déjà ouvert plutôt que d'en empiler un nouveau.
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.navigate?.(url);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});
