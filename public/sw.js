@@ -57,18 +57,24 @@ self.addEventListener('push', (event) => {
     data = {};
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Holos', {
-      body: data.body || '',
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/icon-96x96.png',
-      tag: data.tag || 'holos-reminder',
-      data: { url: data.url || '/' },
-    })
+    Promise.all([
+      self.registration.showNotification(data.title || 'Holos', {
+        body: data.body || '',
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-96x96.png',
+        tag: data.tag || 'holos-reminder',
+        data: { url: data.url || '/' },
+      }),
+      // Pastille sur l'icône. Absente des navigateurs qui ne gèrent pas
+      // l'API Badging, d'où l'appel optionnel.
+      self.navigator?.setAppBadge?.(data.badge ?? 1),
+    ])
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  self.navigator?.clearAppBadge?.();
   const url = event.notification.data?.url || '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
