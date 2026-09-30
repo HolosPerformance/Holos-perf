@@ -163,6 +163,34 @@ export async function savePreferences(athleteEmail, patch) {
 // ─── Abonnement ───────────────────────────────────────────────────────────────
 
 /**
+ * Abonnement effectif de CE navigateur, indépendamment de ce que dit la base.
+ *
+ * Un abonnement est lié à un couple (navigateur, origine) : celui enregistré
+ * depuis un ordinateur ne vaut pas pour un téléphone. Sans cette vérification,
+ * l'interface annoncerait « déjà activées » sur un appareil qui ne recevrait
+ * jamais rien.
+ *
+ * @returns {Promise<string|null>} l'endpoint local, ou null
+ */
+export async function getLocalEndpoint() {
+  if (!isPushSupported()) return null;
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    const subscription = await registration?.pushManager.getSubscription();
+    return subscription?.endpoint || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Les notifications sont-elles actives sur CET appareil ? */
+export function isActiveOnThisDevice(preferences, localEndpoint) {
+  if (!preferences || preferences.notifications_enabled === false) return false;
+  const stored = preferences.push_subscription?.endpoint;
+  return !!stored && !!localEndpoint && stored === localEndpoint;
+}
+
+/**
  * Demande la permission, s'abonne au service de push, et enregistre l'abonnement.
  * @returns {Promise<object>} les préférences à jour
  * @throws {Error} message déjà prêt à afficher

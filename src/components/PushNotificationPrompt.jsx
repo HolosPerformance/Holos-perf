@@ -5,7 +5,9 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   enablePushNotifications,
+  getLocalEndpoint,
   getPushBlocker,
+  isActiveOnThisDevice,
   loadPreferences,
 } from '@/lib/pushNotifications';
 
@@ -27,10 +29,12 @@ export default function PushNotificationPrompt({ athleteEmail }) {
     if (currentBlocker && currentBlocker.code !== 'ios-not-installed') return;
 
     let cancelled = false;
-    loadPreferences(athleteEmail)
-      .then(({ preferences }) => {
+    Promise.all([loadPreferences(athleteEmail), getLocalEndpoint()])
+      .then(([{ preferences }, localEndpoint]) => {
         if (cancelled) return;
-        if (preferences.push_subscription) return; // déjà abonné
+        // Un abonnement enregistré depuis un autre appareil ne vaut pas pour
+        // celui-ci : on propose alors quand même l'activation.
+        if (isActiveOnThisDevice(preferences, localEndpoint)) return;
         setBlocker(currentBlocker);
         setVisible(true);
       })

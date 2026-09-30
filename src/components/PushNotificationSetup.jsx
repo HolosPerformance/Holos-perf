@@ -10,7 +10,9 @@ import {
   REMINDER_TIME_OPTIONS,
   disablePushNotifications,
   enablePushNotifications,
+  getLocalEndpoint,
   getPushBlocker,
+  isActiveOnThisDevice,
   loadPreferences,
   savePreferences,
   snapToReminderSlot,
@@ -20,9 +22,11 @@ export default function PushNotificationSetup({ athleteEmail }) {
   const queryClient = useQueryClient();
   const [reminderTime, setReminderTime] = useState(DEFAULT_REMINDER_TIME);
   const [blocker, setBlocker] = useState(null);
+  const [localEndpoint, setLocalEndpoint] = useState(null);
 
   // Évalué au montage : dépend de la permission et du mode d'affichage, pas du rendu.
   useEffect(() => { setBlocker(getPushBlocker()); }, []);
+  useEffect(() => { getLocalEndpoint().then(setLocalEndpoint); }, []);
 
   const { data: preferences } = useQuery({
     queryKey: ['user-preference', athleteEmail],
@@ -36,14 +40,17 @@ export default function PushNotificationSetup({ athleteEmail }) {
     }
   }, [preferences?.daily_reminder_time]);
 
-  const isSubscribed = !!preferences?.push_subscription;
-  const notifEnabled = preferences?.notifications_enabled !== false;
-  const isActive = isSubscribed && notifEnabled;
+  // L'abonnement enregistré peut venir d'un autre appareil : seul celui de ce
+  // navigateur compte pour savoir si l'utilisateur recevra quelque chose ici.
+  const isActive = isActiveOnThisDevice(preferences, localEndpoint);
+  const subscribedElsewhere =
+    !!preferences?.push_subscription && preferences?.notifications_enabled !== false && !isActive;
 
   const mutate = useMutation({
     mutationFn: ({ run }) => run(),
     onSuccess: (_data, { successMessage }) => {
       queryClient.invalidateQueries({ queryKey: ['user-preference', athleteEmail] });
+      getLocalEndpoint().then(setLocalEndpoint);
       toast.success(successMessage);
     },
     onError: (err) => toast.error(err.message),
@@ -104,13 +111,23 @@ export default function PushNotificationSetup({ athleteEmail }) {
                 </div>
               </div>
             )}
+            {subscribedElsewhere && (
+              <p className="text-sm text-slate-500">
+                Les notifications sont activées sur un autre appareil. Les activer ici
+                les transférera sur celui-ci.
+              </p>
+            )}
             <Button
               className="gap-2 w-full"
               onClick={handleSubscribe}
               disabled={mutate.isPending || isActive}
             >
               <Bell className="w-4 h-4" />
-              {isActive ? 'Notifications déjà activées' : 'Activer les notifications push'}
+              {isActive
+                ? 'Notifications déjà activées'
+                : subscribedElsewhere
+                  ? 'Activer sur cet appareil'
+                  : 'Activer les notifications push'}
             </Button>
           </>
         )}
