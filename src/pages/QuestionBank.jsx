@@ -509,7 +509,7 @@ export default function QuestionBank() {
                         <div key={index} className="p-3 bg-white border rounded-lg space-y-3">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-slate-700">Choix {index + 1}</span>
-                            {index >= 4 && (
+                            {(newQuestion.selectOptions?.choices || []).length > 1 && (
                               <Button
                                 type="button"
                                 variant="ghost"

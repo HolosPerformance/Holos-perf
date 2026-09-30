@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { format, parseISO, eachDayOfInterval, getDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { calculateEMA } from '@/lib/advancedStats';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -23,7 +24,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function AthleteDataChart({ data, selectedMetrics, title, metricConfig, startDate, endDate }) {
+export default function AthleteDataChart({ data, selectedMetrics, title, metricConfig, startDate, endDate, height = 350, statLines = [], emaDefs = [], isZoomed = false }) {
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
   const end = endDate ? new Date(endDate) : new Date();
   const allDays = eachDayOfInterval({ start, end });
@@ -34,6 +35,22 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
   sortedData.forEach(log => {
     const date = format(parseISO(log.training_date), 'yyyy-MM-dd');
     dataMap.set(date, log);
+  });
+
+  // Moyennes mobiles exponentielles : une série par indicateur sélectionné et
+  // par MME active, calculée sur les saisies existantes (dans l'ordre des dates).
+  const emaByDate = new Map();
+  selectedMetrics.forEach(metric => {
+    const points = sortedData.filter(d => d[metric] != null);
+    emaDefs.forEach(def => {
+      const emaValues = calculateEMA(points.map(d => d[metric]), def.period);
+      points.forEach((d, i) => {
+        const date = format(parseISO(d.training_date), 'yyyy-MM-dd');
+        const entry = emaByDate.get(date) || {};
+        entry[`${metric}__${def.key}`] = emaValues[i];
+        emaByDate.set(date, entry);
+      });
+    });
   });
 
   const chartData = allDays.map((day) => {
@@ -54,6 +71,7 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
     if (existingData) {
       Object.assign(dataPoint, existingData);
     }
+    Object.assign(dataPoint, emaByDate.get(dateKey));
     
     return dataPoint;
   });
@@ -77,8 +95,8 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
         </CardHeader>
       )}
       <CardContent className={title ? "pt-0" : "pt-6"}>
-        <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+        <ResponsiveContainer width="100%" height={height}>
+          <LineChart data={chartData} margin={{ top: 5, right: isZoomed ? 180 : 5, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis 
               dataKey="fullDate" 
@@ -96,7 +114,9 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
               domain={[0, 100]}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend />
+            {/* Légende limitée à 2 lignes (2 × 20px), défilable au-delà, pour que
+                les nombreuses séries de statistiques n'écrasent pas le graphique. */}
+            <Legend wrapperStyle={{ fontSize: 12, lineHeight: '20px', maxHeight: 40, overflowY: 'auto' }} />
             {competitionIndices.map((index) => (
               <ReferenceLine
                 key={`competition-${index}`}
@@ -105,6 +125,16 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
                 strokeWidth={1.5}
                 strokeOpacity={0.6}
                 strokeDasharray="4 2"
+              />
+            ))}
+            {statLines.map((line) => (
+              <ReferenceLine
+                key={line.id}
+                y={line.value}
+                stroke={line.color}
+                strokeWidth={2}
+                strokeDasharray={line.dash}
+                label={isZoomed ? { value: `${line.label} (${line.value})`, position: 'right', fill: line.color, fontSize: 11, fontWeight: 600 } : undefined}
               />
             ))}
             {selectedMetrics.map((metric, index) => {
@@ -124,6 +154,25 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
                   connectNulls={false}
                 />
               );
+            })}
+            {selectedMetrics.flatMap((metric, index) => {
+              const metricColor = metricConfig?.[metric]?.color || chartColors[index % chartColors.length];
+              return emaDefs.map(def => (
+                <Line
+                  key={`${metric}__${def.key}`}
+                  type="monotone"
+                  dataKey={`${metric}__${def.key}`}
+                  name={`${def.label} · ${metricConfig?.[metric]?.name || metric}`}
+                  stroke={metricColor}
+                  strokeWidth={2}
+                  strokeOpacity={0.6}
+                  strokeDasharray={def.dash}
+                  dot={false}
+                  activeDot={false}
+                  legendType="plainline"
+                  connectNulls
+                />
+              ));
             })}
           </LineChart>
         </ResponsiveContainer>

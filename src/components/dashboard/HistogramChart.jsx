@@ -3,6 +3,7 @@ import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Respons
 import { format, parseISO, eachDayOfInterval, getDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, calculateEMA, computeMetricStats } from '@/lib/advancedStats';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -18,22 +19,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function HistogramChart({ data, dataKey, title, color, startDate, endDate }) {
-  const calculateEMA = (values, period) => {
-    const multiplier = 2 / (period + 1);
-    let ema = null;
-    
-    return values.map((value) => {
-      if (value == null) return null;
-      if (ema === null) {
-        ema = value;
-      } else {
-        ema = (value * multiplier) + (ema * (1 - multiplier));
-      }
-      return Math.round(ema * 10) / 10;
-    });
-  };
-
+export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, advancedStats, isZoomed = false }) {
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
   const end = endDate ? new Date(endDate) : new Date();
   const allDays = eachDayOfInterval({ start, end });
@@ -50,6 +36,7 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
   const values = filteredData.map(d => d[dataKey]);
   const ema7 = calculateEMA(values, 7);
   const ema21 = calculateEMA(values, 21);
+  const metricStats = computeMetricStats(values);
 
   const chartData = allDays.map((day) => {
     const dateKey = format(day, 'yyyy-MM-dd');
@@ -101,8 +88,8 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
         <CardTitle className="text-base font-semibold">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={220}>
-          <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+        <ResponsiveContainer width="100%" height={height}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: isZoomed ? 90 : 5, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
             <XAxis 
               dataKey="fullDate" 
@@ -137,32 +124,35 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
                 strokeDasharray="4 2"
               />
             ))}
+            {metricStats && REFERENCE_STAT_DEFS.filter(def => advancedStats?.[def.key]).map((def) => (
+              <ReferenceLine
+                key={def.key}
+                y={metricStats[def.key]}
+                stroke={def.color}
+                strokeWidth={2}
+                strokeDasharray={def.dash}
+                label={isZoomed ? { value: `${def.label} (${metricStats[def.key]})`, position: 'right', fill: def.color, fontSize: 11, fontWeight: 600 } : undefined}
+              />
+            ))}
             <Bar dataKey="value" radius={[6, 6, 0, 0]} name="Valeur">
               {chartData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={color || '#3b82f6'} opacity={0.85} />
               ))}
             </Bar>
-            <Line 
-              type="monotone" 
-              dataKey="ema7" 
-              stroke="#f59e0b" 
-              strokeWidth={3.5} 
-              dot={{ r: 3, fill: '#f59e0b' }}
-              name="MME 7j"
-              strokeOpacity={1}
-              connectNulls
-            />
-            <Line 
-              type="monotone" 
-              dataKey="ema21" 
-              stroke="#3b82f6" 
-              strokeWidth={3.5} 
-              dot={{ r: 3, fill: '#3b82f6' }}
-              name="MME 21j"
-              strokeOpacity={1}
-              strokeDasharray="5 5"
-              connectNulls
-            />
+            {EMA_STAT_DEFS.filter(def => advancedStats?.[def.key]).map((def) => (
+              <Line
+                key={def.key}
+                type="monotone"
+                dataKey={def.key}
+                stroke={def.color}
+                strokeWidth={3.5}
+                dot={{ r: 3, fill: def.color }}
+                name={def.label}
+                strokeOpacity={1}
+                strokeDasharray={def.dash}
+                connectNulls
+              />
+            ))}
           </ComposedChart>
         </ResponsiveContainer>
       </CardContent>

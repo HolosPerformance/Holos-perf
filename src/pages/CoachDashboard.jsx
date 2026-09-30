@@ -1,29 +1,36 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase as base44 } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import HistogramChart from '../components/dashboard/HistogramChart';
+import BoxPlotChart, { autoBoxplotGroupBy, LOW_COUNT } from '../components/dashboard/BoxPlotChart';
+import ZoomableChartCard from '../components/dashboard/ZoomableChartCard';
+import AdvancedAnalyses from '../components/dashboard/analysis/AdvancedAnalyses';
+import { CollapsibleAnalysis } from '../components/dashboard/analysis/AnalysisParts';
 import MetricSelector from '../components/dashboard/MetricSelector';
 import StatCard from '../components/dashboard/StatCard';
 import SummaryStatsTable from '../components/dashboard/SummaryStatsTable';
+import AdvancedStatsToggle from '../components/dashboard/AdvancedStatsToggle';
+import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetricStats } from '@/lib/advancedStats';
 import {
   Users, Activity, TrendingUp, Calendar, Filter,
-  ChevronDown, ChevronUp, RefreshCw, ArrowLeft, Search, Zap, Download
+  RefreshCw, ArrowLeft, Search, Zap, Download,
+  BoxSelect, Table2, BarChart3, MessageSquare
 } from 'lucide-react';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+
+const BOXPLOT_GROUP_LABELS = { day: 'Jour', week: 'Semaine', month: 'Mois' };
 
 const defaultSessionTypeColors = [
   'bg-blue-100 text-blue-700',
@@ -98,19 +105,33 @@ const getDefaultDates = () => {
 export default function CoachDashboard() {
   const { user } = useAuth();
   const [selectedAthleteEmails, setSelectedAthleteEmails] = useState([]);
-  const [selectedGroupId, setSelectedGroupId] = useState(null);
-  const [selectionMode, setSelectionMode] = useState('all');
+  const [selectedGroupIds, setSelectedGroupIds] = useState([]);
+  const [selectedClubIds, setSelectedClubIds] = useState([]);
   const [startDate, setStartDate] = useState(() => getDefaultDates().start);
   const [endDate, setEndDate] = useState(() => getDefaultDates().end);
   const [selectedMetrics, setSelectedMetrics] = useState([]);
+  // Indique que la sélection par défaut doit être recalculée une fois connus
+  // les indicateurs ayant des données sur la période
+  const needsDefaultSelection = useRef(false);
   const [groupBy, setGroupBy] = useState('day');
   const [sessionTypeFilters, setSessionTypeFilters] = useState(['entrainement', 'competition', 'effort_type', 'off', 'inconnu']);
-  const [sortConfig, setSortConfig] = useState({ key: 'training_date', direction: 'desc' });
   const [demoData] = useState(() => generateDemoData());
   const [athleteMetrics, setAthleteMetrics] = useState({ labels: {}, colors: {}, idToCanonical: {} });
   const [athleteSearchQuery, setAthleteSearchQuery] = useState('');
   const [dynamicSessionTypes, setDynamicSessionTypes] = useState({ labels: {}, colors: {} });
   const [customColors, setCustomColors] = useState({});
+  // Statistiques avancées : réglage global + éventuels réglages individuels
+  // par graphique (clé 'evolution' pour le graphique d'évolution, sinon la
+  // clé de l'indicateur pour chaque histogramme).
+  const [globalAdvancedStats, setGlobalAdvancedStats] = useState(EMPTY_ADVANCED_STATS);
+  const [chartAdvancedStats, setChartAdvancedStats] = useState({});
+  // Menus repliables, fermés à chaque arrivée sur la page
+  const [showSummaryStats, setShowSummaryStats] = useState(false);
+  const [showHistograms, setShowHistograms] = useState(false);
+  const [showBoxplots, setShowBoxplots] = useState(false);
+  // Regroupement des boxplots : null = automatique selon la longueur de la période
+  const [boxplotGroupByChoice, setBoxplotGroupByChoice] = useState(null);
+  const [showRemarks, setShowRemarks] = useState(false);
 
   useEffect(() => {
     if (user?.metric_colors) {
@@ -286,6 +307,7 @@ export default function CoachDashboard() {
     maitrise_technique: log.maitrise_technique,
     maitrise_tactique: log.maitrise_tactique,
     epanouissement: log.epanouissement,
+    commentaire: log.commentaire,
   })), [rawTrainingLogs]);
 
   const hasRealAthletes = isCoach
@@ -317,6 +339,12 @@ export default function CoachDashboard() {
 
   const isIndividualView = localStorage.getItem('coachView') === 'individual';
 
+  const { data: allClubs = [] } = useQuery({
+    queryKey: ['all-clubs-coach-dashboard'],
+    queryFn: async () => await base44.entities.Club.list(),
+    enabled: !!user && isAdmin,
+  });
+
   const selectableAthletes = useMemo(() => {
     if (isAdmin) {
       return allUsers
@@ -337,6 +365,43 @@ export default function CoachDashboard() {
     return [];
   }, [isAdmin, isCoach, allUsers, coachClub, isIndividualView, coachGroup]);
 
+  // Pool d'athlètes affiché dans la liste à cocher : réduit aux groupes/clubs
+  // sélectionnés s'il y en a, sinon le pool complet (club + groupe du coach, ou tous pour l'admin).
+  const athletePool = useMemo(() => {
+    if (selectedGroupIds.length === 0 && selectedClubIds.length === 0) return selectableAthletes;
+    const narrowedEmails = new Set([
+      ...selectedGroupIds.flatMap(id => allGroups.find(g => g.id === id)?.athlete_emails || []),
+      ...selectedClubIds.flatMap(id => allClubs.find(c => c.id === id)?.athlete_emails || []),
+    ]);
+    return selectableAthletes.filter(a => narrowedEmails.has(a.email));
+  }, [selectableAthletes, selectedGroupIds, selectedClubIds, allGroups, allClubs]);
+
+  const toggleGroupFilter = (groupId) => {
+    const group = allGroups.find(g => g.id === groupId);
+    const emails = group?.athlete_emails || [];
+    const isSelected = selectedGroupIds.includes(groupId);
+    setSelectedGroupIds(prev => isSelected ? prev.filter(id => id !== groupId) : [...prev, groupId]);
+    setSelectedAthleteEmails(prev => isSelected
+      ? prev.filter(e => !emails.includes(e))
+      : [...new Set([...prev, ...emails])]);
+  };
+
+  const toggleClubFilter = (clubId) => {
+    const club = allClubs.find(c => c.id === clubId);
+    const emails = club?.athlete_emails || [];
+    const isSelected = selectedClubIds.includes(clubId);
+    setSelectedClubIds(prev => isSelected ? prev.filter(id => id !== clubId) : [...prev, clubId]);
+    setSelectedAthleteEmails(prev => isSelected
+      ? prev.filter(e => !emails.includes(e))
+      : [...new Set([...prev, ...emails])]);
+  };
+
+  const clearAthleteSelection = () => {
+    setSelectedGroupIds([]);
+    setSelectedClubIds([]);
+    setSelectedAthleteEmails([]);
+  };
+
   const userFilteredLogs = useMemo(() => {
     let logs = allLogs;
 
@@ -350,19 +415,14 @@ export default function CoachDashboard() {
     }
 
     if (isAdmin || isCoach) {
-      if (selectionMode === 'athletes' && selectedAthleteEmails.length > 0) {
-        logs = logs.filter(log => selectedAthleteEmails.includes(log.athlete_email));
-      } else if (selectionMode === 'group' && selectedGroupId) {
-        const group = allGroups.find(g => g.id === selectedGroupId);
-        logs = group ? logs.filter(log => group.athlete_emails.includes(log.athlete_email)) : [];
-      } else {
-        // Aucune sélection précise (mode "Tous", ou "Athlètes"/"Groupe" sans choix fait) : rien à afficher
-        logs = [];
-      }
+      // Aucune sélection précise : rien à afficher tant que l'utilisateur n'a rien choisi
+      logs = selectedAthleteEmails.length > 0
+        ? logs.filter(log => selectedAthleteEmails.includes(log.athlete_email))
+        : [];
     }
 
     return logs;
-  }, [allLogs, isAdmin, isCoach, selectableAthletes, user?.email, selectionMode, selectedAthleteEmails, selectedGroupId, allGroups]);
+  }, [allLogs, isAdmin, isCoach, selectableAthletes, user?.email, selectedAthleteEmails]);
 
   const athletesFromLogs = [...new Map(userFilteredLogs.map(log => [log.athlete_email, { 
     email: log.athlete_email, 
@@ -509,7 +569,6 @@ export default function CoachDashboard() {
 
     const labels = {};
     const colors = {};
-    const metricKeys = [];
     const idToCanonical = {};
     let colorIdx = 0;
 
@@ -535,7 +594,6 @@ export default function CoachDashboard() {
       else if (label.includes('musculaire')) color = '#fb923c';
       else color = defaultColors[colorIdx % defaultColors.length];
       colors[canonicalKey] = color;
-      metricKeys.push(canonicalKey);
       colorIdx++;
     });
 
@@ -545,8 +603,27 @@ export default function CoachDashboard() {
     });
 
     setAthleteMetrics({ labels, colors, idToCanonical });
-    setSelectedMetrics(metricKeys.slice(0, Math.min(4, metricKeys.length)));
-  }, [userFilteredLogs, assignedTemplates, customColors, isAdmin, isCoach]);
+    // La sélection par défaut est appliquée plus bas, parmi les indicateurs
+    // ayant des données sur la période (voir availableMetricEntries)
+    needsDefaultSelection.current = true;
+    // customColors volontairement absent des dépendances : un changement de couleur
+    // ne doit pas réinitialiser les indicateurs sélectionnés (voir effet ci-dessous)
+  }, [userFilteredLogs, assignedTemplates, isAdmin, isCoach]);
+
+  // Appliquer les couleurs personnalisées sans toucher à la sélection des indicateurs
+  useEffect(() => {
+    setAthleteMetrics(prev => {
+      const colors = { ...prev.colors };
+      let changed = false;
+      Object.keys(colors).forEach(key => {
+        if (customColors[key] && colors[key] !== customColors[key]) {
+          colors[key] = customColors[key];
+          changed = true;
+        }
+      });
+      return changed ? { ...prev, colors } : prev;
+    });
+  }, [customColors]);
 
   const dateRange = { start: parseISO(startDate), end: parseISO(endDate) };
 
@@ -572,7 +649,7 @@ export default function CoachDashboard() {
   };
 
   const processedLogs = (() => {
-    if (selectionMode === 'all' || (selectionMode === 'athletes' && selectedAthleteEmails.length <= 1)) {
+    if (selectedAthleteEmails.length <= 1) {
       return filteredLogs.map(log => ({
         ...remapLogMetrics(log),
         dateLabel: format(parseISO(log.training_date), 'dd/MM', { locale: fr })
@@ -588,7 +665,7 @@ export default function CoachDashboard() {
           training_date: log.training_date,
           session_type: log.session_type,
           dateLabel: format(parseISO(log.training_date), 'dd/MM', { locale: fr }),
-          athlete_name: selectionMode === 'group' ? 'Groupe (médiane)' : 'Sélection (médiane)',
+          athlete_name: 'Sélection (médiane)',
           values: {}
         };
       }
@@ -623,17 +700,81 @@ export default function CoachDashboard() {
 
   const logsWithLabels = processedLogs;
 
-  const sortedLogs = [...filteredLogs].sort((a, b) => {
-    let aVal = a[sortConfig.key];
-    let bVal = b[sortConfig.key];
-    if (sortConfig.key === 'training_date') {
-      aVal = new Date(aVal);
-      bVal = new Date(bVal);
-    }
-    if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-    return 0;
-  });
+  // Logs bruts remappés (un log par saisie, sans agrégation à la médiane) :
+  // nécessaire pour les boxplots, qui doivent voir la répartition réelle des
+  // valeurs d'un jour (ex. tous les athlètes sélectionnés), pas juste la
+  // médiane déjà calculée par processedLogs quand plusieurs athlètes sont sélectionnés.
+  const rawFilteredLogs = filteredLogs.map(remapLogMetrics);
+  const boxplotGroupBy = boxplotGroupByChoice || autoBoxplotGroupBy(startDate, endDate);
+
+  // Saisies pour les menus AFE / Analyse réseau (mémorisées : ces calculs sont
+  // coûteux et ne doivent pas être relancés à chaque rendu du dashboard)
+  const analysisAthleteLogs = useMemo(
+    () => userFilteredLogs.map(remapLogMetrics),
+    [userFilteredLogs, athleteMetrics.idToCanonical]
+  );
+  const analysisPeriodLogs = useMemo(
+    () => analysisAthleteLogs.filter(log =>
+      log.training_date >= startDate && log.training_date <= endDate && sessionTypeFilters.includes(log.session_type)),
+    [analysisAthleteLogs, startDate, endDate, sessionTypeFilters]
+  );
+  const analysisGlobalFilters = useMemo(
+    () => ({ startDate, endDate, sessionTypes: sessionTypeFilters }),
+    [startDate, endDate, sessionTypeFilters]
+  );
+
+  // N'affiche un histogramme / boxplot que si l'indicateur a au moins une
+  // valeur sur la période et les filtres courants.
+  const metricsWithData = (logs) => Object.entries(athleteMetrics.labels)
+    .filter(([key]) => logs.some(log => log[key] != null));
+  const histogramMetricEntries = metricsWithData(logsWithLabels);
+  // Indicateurs proposés dans le sélecteur : même règle que les boxplots
+  const availableMetricEntries = metricsWithData(rawFilteredLogs);
+  const boxplotMetricEntries = availableMetricEntries;
+  const availableMetricKeysSignature = availableMetricEntries.map(([key]) => key).join('|');
+
+  // Sélection par défaut : les 4 premiers indicateurs ayant des données
+  useEffect(() => {
+    if (!needsDefaultSelection.current) return;
+    const keys = availableMetricKeysSignature ? availableMetricKeysSignature.split('|') : [];
+    setSelectedMetrics(keys.slice(0, 4));
+    if (keys.length > 0) needsDefaultSelection.current = false;
+  }, [availableMetricKeysSignature, athleteMetrics]);
+
+  // Remarques : commentaire libre du questionnaire d'entraînement classique,
+  // et réponses aux questions de type texte libre des questionnaires personnalisés.
+  const remarksList = useMemo(() => {
+    const templateById = {};
+    assignedTemplates.forEach(t => { templateById[t.id] = t; });
+
+    const remarks = [];
+    filteredLogs.forEach(log => {
+      if (log.template_id) {
+        const template = templateById[log.template_id];
+        const textQuestions = (template?.questions || []).filter(q => q.type === 'text' || q.type === 'textarea');
+        textQuestions.forEach(q => {
+          const value = log[q.id];
+          if (value && String(value).trim()) {
+            remarks.push({
+              id: `${log.id}-${q.id}`,
+              date: log.training_date,
+              athlete_name: log.athlete_name,
+              text: String(value).trim(),
+            });
+          }
+        });
+      } else if (log.commentaire && String(log.commentaire).trim()) {
+        remarks.push({
+          id: `${log.id}-commentaire`,
+          date: log.training_date,
+          athlete_name: log.athlete_name,
+          text: String(log.commentaire).trim(),
+        });
+      }
+    });
+
+    return remarks.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [filteredLogs, assignedTemplates]);
 
   const groupedChartData = (() => {
     const currentMetricLabels = Object.keys(athleteMetrics.labels);
@@ -691,15 +832,53 @@ export default function CoachDashboard() {
     ? Math.round(filteredLogs.reduce((sum, l) => sum + (l[secondMetricKey] || 0), 0) / filteredLogs.length)
     : '-';
 
-  const toggleSort = (key) => {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+  // Réglages "statistiques avancées" : 'evolution' pour le graphique
+  // d'évolution, sinon la clé de l'indicateur pour un histogramme donné.
+  const getChartStats = (chartId) => chartAdvancedStats[chartId] || EMPTY_ADVANCED_STATS;
+
+  // Le bouton global applique immédiatement la valeur à tous les graphiques
+  // (évolution + chaque histogramme). Les flèches individuelles permettent
+  // ensuite d'ajuster une carte précise sans affecter les autres.
+  const toggleGlobalStat = (statKey) => {
+    const nextVal = !globalAdvancedStats[statKey];
+    setGlobalAdvancedStats(prev => ({ ...prev, [statKey]: nextVal }));
+    setChartAdvancedStats(current => {
+      const chartIds = ['evolution', ...Object.keys(athleteMetrics.labels)];
+      const next = { ...current };
+      chartIds.forEach(id => {
+        next[id] = { ...(current[id] || EMPTY_ADVANCED_STATS), [statKey]: nextVal };
+      });
+      return next;
+    });
+  };
+
+  const toggleChartStat = (chartId, statKey) => {
+    setChartAdvancedStats(current => ({
+      ...current,
+      [chartId]: { ...(current[chartId] || EMPTY_ADVANCED_STATS), [statKey]: !(current[chartId] || EMPTY_ADVANCED_STATS)[statKey] }
     }));
   };
 
+  // Lignes de référence pour le graphique d'évolution : une par indicateur
+  // sélectionné et par statistique active, calculées sur filteredLogs (donc
+  // sur la période et les filtres déjà appliqués).
+  const evolutionStats = getChartStats('evolution');
+  const evolutionStatLines = selectedMetrics.flatMap(metricKey => {
+    const values = filteredLogs.map(l => l[metricKey]).filter(v => v != null);
+    const stats = computeMetricStats(values);
+    if (!stats) return [];
+    return REFERENCE_STAT_DEFS.filter(def => evolutionStats[def.key]).map(def => ({
+      id: `${metricKey}-${def.key}`,
+      value: stats[def.key],
+      color: def.color,
+      dash: def.dash,
+      label: `${def.label} · ${athleteMetrics.labels[metricKey]}`,
+    }));
+  });
+  const evolutionEmaDefs = EMA_STAT_DEFS.filter(def => evolutionStats[def.key]);
+
   const toggleSessionTypeFilter = (type) => {
-    setSessionTypeFilters(prev => 
+    setSessionTypeFilters(prev =>
       prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
     );
   };
@@ -764,116 +943,102 @@ export default function CoachDashboard() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-4 flex-wrap">
-                  <Label className="text-sm font-medium text-slate-700">Mode de sélection :</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={selectionMode === 'all' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => { setSelectionMode('all'); setSelectedAthleteEmails([]); setSelectedGroupId(null); }}
-                      className={selectionMode === 'all' ? 'bg-slate-800' : ''}
-                    >
-                      Tous
-                    </Button>
-                    <Button
-                      variant={selectionMode === 'athletes' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => { setSelectionMode('athletes'); setSelectedGroupId(null); }}
-                      className={selectionMode === 'athletes' ? 'bg-slate-800' : ''}
-                    >
-                      Athlètes
-                    </Button>
+                {(allGroups.length > 0 || allClubs.length > 0) && (
+                  <div className="flex flex-col gap-3">
                     {allGroups.length > 0 && (
-                      <Button
-                        variant={selectionMode === 'group' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => { setSelectionMode('group'); setSelectedAthleteEmails([]); }}
-                        className={selectionMode === 'group' ? 'bg-slate-800' : ''}
-                      >
-                        Groupe
-                      </Button>
+                      <div className="flex items-start gap-4">
+                        <Label className="text-sm font-medium text-slate-700 whitespace-nowrap mt-1">Groupes :</Label>
+                        <div className="flex-1 flex flex-wrap gap-x-4 gap-y-2">
+                          {allGroups.map(group => (
+                            <div key={group.id} className="flex items-center gap-1.5">
+                              <Checkbox
+                                id={`group-filter-${group.id}`}
+                                checked={selectedGroupIds.includes(group.id)}
+                                onCheckedChange={() => toggleGroupFilter(group.id)}
+                              />
+                              <Label htmlFor={`group-filter-${group.id}`} className="text-sm cursor-pointer">
+                                {group.name} ({group.athlete_emails?.length || 0})
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {allClubs.length > 0 && (
+                      <div className="flex items-start gap-4">
+                        <Label className="text-sm font-medium text-slate-700 whitespace-nowrap mt-1">Clubs :</Label>
+                        <div className="flex-1 flex flex-wrap gap-x-4 gap-y-2">
+                          {allClubs.map(club => (
+                            <div key={club.id} className="flex items-center gap-1.5">
+                              <Checkbox
+                                id={`club-filter-${club.id}`}
+                                checked={selectedClubIds.includes(club.id)}
+                                onCheckedChange={() => toggleClubFilter(club.id)}
+                              />
+                              <Label htmlFor={`club-filter-${club.id}`} className="text-sm cursor-pointer">
+                                {club.name} ({club.athlete_emails?.length || 0})
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
+                )}
 
-                {selectionMode === 'athletes' && (
-                  <div className="flex items-start gap-4">
-                    <Label className="text-sm font-medium text-slate-700 whitespace-nowrap mt-3">Athlètes :</Label>
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Search className="w-4 h-4 text-slate-400" />
-                        <Input
-                          placeholder="Rechercher un athlète..."
-                          value={athleteSearchQuery}
-                          onChange={(e) => setAthleteSearchQuery(e.target.value)}
-                          className="h-9"
-                        />
-                      </div>
-                      <div className="border border-slate-200 rounded-lg p-3 bg-white max-h-48 overflow-y-auto">
-                        {selectableAthletes.length > 0 ? (
-                          selectableAthletes
-                            .filter(a => !athleteSearchQuery || a.name.toLowerCase().includes(athleteSearchQuery.toLowerCase()) || a.email.toLowerCase().includes(athleteSearchQuery.toLowerCase()))
-                            .map((athlete) => (
-                              <div key={athlete.email} className="flex items-center gap-2 py-1">
-                                <Checkbox
-                                  id={`athlete-${athlete.email}`}
-                                  checked={selectedAthleteEmails.includes(athlete.email)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setSelectedAthleteEmails([...selectedAthleteEmails, athlete.email]);
-                                    } else {
-                                      setSelectedAthleteEmails(selectedAthleteEmails.filter(e => e !== athlete.email));
-                                    }
-                                  }}
-                                />
-                                <Label htmlFor={`athlete-${athlete.email}`} className="text-sm cursor-pointer">
-                                  {athlete.name}
-                                </Label>
-                              </div>
-                            ))
-                        ) : (
-                          <div className="text-sm text-amber-700">Aucun athlète disponible</div>
-                        )}
-                      </div>
-                      {selectedAthleteEmails.length > 0 && (
+                <div className="flex items-start gap-4">
+                  <Label className="text-sm font-medium text-slate-700 whitespace-nowrap mt-3">Athlètes :</Label>
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Search className="w-4 h-4 text-slate-400" />
+                      <Input
+                        placeholder="Rechercher un athlète..."
+                        value={athleteSearchQuery}
+                        onChange={(e) => setAthleteSearchQuery(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="border border-slate-200 rounded-lg p-3 bg-white max-h-48 overflow-y-auto">
+                      {athletePool.length > 0 ? (
+                        athletePool
+                          .filter(a => !athleteSearchQuery || a.name.toLowerCase().includes(athleteSearchQuery.toLowerCase()) || a.email.toLowerCase().includes(athleteSearchQuery.toLowerCase()))
+                          .map((athlete) => (
+                            <div key={athlete.email} className="flex items-center gap-2 py-1">
+                              <Checkbox
+                                id={`athlete-${athlete.email}`}
+                                checked={selectedAthleteEmails.includes(athlete.email)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedAthleteEmails([...selectedAthleteEmails, athlete.email]);
+                                  } else {
+                                    setSelectedAthleteEmails(selectedAthleteEmails.filter(e => e !== athlete.email));
+                                  }
+                                }}
+                              />
+                              <Label htmlFor={`athlete-${athlete.email}`} className="text-sm cursor-pointer">
+                                {athlete.name}
+                              </Label>
+                            </div>
+                          ))
+                      ) : (
+                        <div className="text-sm text-amber-700">Aucun athlète disponible</div>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      {selectedAthleteEmails.length > 0 ? (
                         <div className="text-sm text-indigo-700 font-medium">
-                          ✓ {selectedAthleteEmails.length} athlète(s) sélectionné(s) - Affichage des médianes
+                          ✓ {selectedAthleteEmails.length} athlète(s) sélectionné(s){selectedAthleteEmails.length > 1 ? ' - Affichage des médianes' : ''}
                         </div>
+                      ) : <span />}
+                      {(selectedGroupIds.length > 0 || selectedClubIds.length > 0 || selectedAthleteEmails.length > 0) && (
+                        <Button variant="ghost" size="sm" onClick={clearAthleteSelection} className="text-slate-500 h-7 px-2">
+                          Réinitialiser
+                        </Button>
                       )}
                     </div>
                   </div>
-                )}
-
-                {selectionMode === 'group' && allGroups.length > 0 && (
-                  <div className="flex items-center gap-4">
-                    <Label className="text-sm font-medium text-slate-700 whitespace-nowrap">Groupe :</Label>
-                    <div className="flex-1 max-w-md">
-                      <Select 
-                        value={selectedGroupId || 'none'} 
-                        onValueChange={(v) => setSelectedGroupId(v === 'none' ? null : v)}
-                      >
-                        <SelectTrigger className="h-11 bg-white border-indigo-300 shadow-sm">
-                          <SelectValue placeholder="Sélectionner un groupe..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">
-                            <span className="font-semibold">Sélectionner un groupe...</span>
-                          </SelectItem>
-                          {allGroups.map((group) => (
-                            <SelectItem key={group.id} value={group.id}>
-                              {group.name} ({group.athlete_emails?.length || 0} athlètes)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {selectedGroupId && (
-                        <div className="text-sm text-indigo-700 font-medium mt-2">
-                          ✓ Groupe sélectionné - Affichage des médianes par jour
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -922,30 +1087,27 @@ export default function CoachDashboard() {
           </CardContent>
         </Card>
 
-        {/* Summary Stats Table */}
-        <div className="mb-6">
-          <SummaryStatsTable 
-            data={userFilteredLogs}
-            metricLabels={athleteMetrics.labels}
-            metricColors={athleteMetrics.colors}
-            startDate={startDate}
-            endDate={endDate}
-            sessionTypeFilters={sessionTypeFilters}
-          />
-        </div>
-
         {/* Metric Selector */}
-        {Object.keys(athleteMetrics.labels).length > 0 && (
+        {availableMetricEntries.length > 0 && (
           <Card className="shadow-sm border-0 mb-6">
             <CardContent className="p-4">
-              <h3 className="font-semibold text-slate-800 mb-3">Indicateurs à afficher</h3>
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h3 className="font-semibold text-slate-800">Indicateurs à afficher</h3>
+                <AdvancedStatsToggle
+                  variant="button"
+                  idPrefix="global"
+                  label="Statistiques avancées"
+                  active={globalAdvancedStats}
+                  onToggle={toggleGlobalStat}
+                />
+              </div>
               <MetricSelector
                 selected={selectedMetrics}
                 onChange={setSelectedMetrics}
                 onColorChange={handleColorChange}
-                metrics={Object.keys(athleteMetrics.labels).map(key => ({
+                metrics={availableMetricEntries.map(([key, label]) => ({
                   key,
-                  label: athleteMetrics.labels[key],
+                  label,
                   color: athleteMetrics.colors[key]
                 }))}
               />
@@ -956,110 +1118,201 @@ export default function CoachDashboard() {
         {/* Line Chart */}
         {groupedChartData.length > 0 && selectedMetrics.length > 0 && (
           <div className="mb-6">
-            <AthleteDataChart
-              data={groupedChartData}
-              selectedMetrics={selectedMetrics}
-              metricConfig={Object.keys(athleteMetrics.labels).reduce((acc, key) => {
-                acc[key] = { name: athleteMetrics.labels[key], color: athleteMetrics.colors[key] };
-                return acc;
-              }, {})}
+            <ZoomableChartCard
               title={`Évolution ${isAdmin && athletes.length > 1 ? '(tous les athlètes)' : ''}`}
-              startDate={startDate}
-              endDate={endDate}
-            />
+              zoomedHeight={550}
+              headerExtra={
+                <AdvancedStatsToggle
+                  variant="icon"
+                  idPrefix="evolution"
+                  active={getChartStats('evolution')}
+                  onToggle={(statKey) => toggleChartStat('evolution', statKey)}
+                />
+              }
+            >
+              {(isZoomed, zoomHeight) => (
+                <AthleteDataChart
+                  data={groupedChartData}
+                  selectedMetrics={selectedMetrics}
+                  metricConfig={Object.keys(athleteMetrics.labels).reduce((acc, key) => {
+                    acc[key] = { name: athleteMetrics.labels[key], color: athleteMetrics.colors[key] };
+                    return acc;
+                  }, {})}
+                  title={`Évolution ${isAdmin && athletes.length > 1 ? '(tous les athlètes)' : ''}`}
+                  startDate={startDate}
+                  endDate={endDate}
+                  height={isZoomed ? zoomHeight : undefined}
+                  statLines={evolutionStatLines}
+                  emaDefs={evolutionEmaDefs}
+                  isZoomed={isZoomed}
+                />
+              )}
+            </ZoomableChartCard>
           </div>
         )}
 
-        {/* Histogram Charts Grid */}
-        {logsWithLabels.length > 0 && Object.keys(athleteMetrics.labels).length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {Object.entries(athleteMetrics.labels).map(([key, label]) => (
-              <HistogramChart
+        {/* Statistiques descriptives, repliable */}
+        <CollapsibleAnalysis
+          title="Statistiques descriptives"
+          icon={Table2}
+          open={showSummaryStats}
+          onToggle={() => setShowSummaryStats(v => !v)}
+        >
+          <SummaryStatsTable
+            data={userFilteredLogs}
+            metricLabels={athleteMetrics.labels}
+            metricColors={athleteMetrics.colors}
+            startDate={startDate}
+            endDate={endDate}
+            sessionTypeFilters={sessionTypeFilters}
+            showTitle={false}
+          />
+        </CollapsibleAnalysis>
+
+        {/* Histogrammes, repliable */}
+        {histogramMetricEntries.length > 0 && (
+          <CollapsibleAnalysis
+            title="Histogrammes"
+            icon={BarChart3}
+            open={showHistograms}
+            onToggle={() => setShowHistograms(v => !v)}
+          >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {histogramMetricEntries.map(([key, label]) => (
+              <ZoomableChartCard
                 key={key}
-                data={logsWithLabels}
-                dataKey={key}
                 title={label}
-                color={athleteMetrics.colors[key]}
-                startDate={startDate}
-                endDate={endDate}
-              />
+                zoomedHeight={450}
+                headerExtra={
+                  <AdvancedStatsToggle
+                    variant="icon"
+                    idPrefix={`hist-${key}`}
+                    active={getChartStats(key)}
+                    onToggle={(statKey) => toggleChartStat(key, statKey)}
+                  />
+                }
+              >
+                {(isZoomed, zoomHeight) => (
+                  <HistogramChart
+                    data={logsWithLabels}
+                    dataKey={key}
+                    title={label}
+                    color={athleteMetrics.colors[key]}
+                    startDate={startDate}
+                    endDate={endDate}
+                    height={isZoomed ? zoomHeight : undefined}
+                    advancedStats={getChartStats(key)}
+                    isZoomed={isZoomed}
+                  />
+                )}
+              </ZoomableChartCard>
             ))}
           </div>
+          </CollapsibleAnalysis>
         )}
 
-        {/* Data Table */}
-        <Card className="shadow-sm border-0">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Détail des séances</CardTitle>
-              <Badge variant="secondary">{sortedLogs.length} entrées</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50">
-                    <TableHead 
-                      className="cursor-pointer hover:bg-slate-100"
-                      onClick={() => toggleSort('training_date')}
+        {/* Boxplots : distribution par jour, semaine ou mois, par indicateur, repliable */}
+        {boxplotMetricEntries.length > 0 && (
+          <CollapsibleAnalysis
+            title="Boxplot"
+            icon={BoxSelect}
+            badge={BOXPLOT_GROUP_LABELS[boxplotGroupBy]}
+            open={showBoxplots}
+            onToggle={() => setShowBoxplots(v => !v)}
+          >
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <span className="text-sm font-medium text-slate-700">Regrouper par :</span>
+                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+                  {[
+                    [null, `Auto (${BOXPLOT_GROUP_LABELS[autoBoxplotGroupBy(startDate, endDate)].toLowerCase()})`],
+                    ['day', BOXPLOT_GROUP_LABELS.day],
+                    ['week', BOXPLOT_GROUP_LABELS.week],
+                    ['month', BOXPLOT_GROUP_LABELS.month],
+                  ].map(([value, label]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => setBoxplotGroupByChoice(value)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                        boxplotGroupByChoice === value ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
+                      }`}
                     >
-                      <div className="flex items-center gap-1">
-                        Date
-                        {sortConfig.key === 'training_date' && (
-                          sortConfig.direction === 'desc' ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />
-                        )}
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-slate-100"
-                      onClick={() => toggleSort('athlete_name')}
-                    >
-                      Athlète
-                    </TableHead>
-                    <TableHead>Type</TableHead>
-                    {selectedMetrics.slice(0, 5).map(metricKey => (
-                      <TableHead 
-                        key={metricKey}
-                        className="text-center cursor-pointer hover:bg-slate-100"
-                        onClick={() => toggleSort(metricKey)}
-                      >
-                        {athleteMetrics.labels[metricKey] || metricKey}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedLogs.slice(0, 10).map((log) => (
-                    <TableRow key={log.id} className="hover:bg-slate-50">
-                      <TableCell className="font-medium">
-                        {format(parseISO(log.training_date), 'dd/MM/yyyy', { locale: fr })}
-                      </TableCell>
-                      <TableCell>{log.athlete_name}</TableCell>
-                      <TableCell>
-                        <Badge className={dynamicSessionTypes.colors[log.session_type] || 'bg-slate-100 text-slate-600'}>
-                          {dynamicSessionTypes.labels[log.session_type] || log.session_type}
-                        </Badge>
-                      </TableCell>
-                      {selectedMetrics.slice(0, 5).map(metricKey => (
-                        <TableCell key={metricKey} className="text-center">
-                          <span className={`font-medium ${log[metricKey] >= 70 ? 'text-amber-600' : ''}`}>
-                            {log[metricKey] ?? '-'}
-                          </span>
-                        </TableCell>
-                      ))}
-                    </TableRow>
+                      {label}
+                    </button>
                   ))}
-                </TableBody>
-              </Table>
-            </div>
-            {sortedLogs.length > 10 && (
-              <p className="text-center text-sm text-slate-500 mt-4">
-                Affichage des 10 premières entrées sur {sortedLogs.length}
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Boîte : de Q1 à Q3 · trait : médiane · ◇ : moyenne · moustaches : jusqu'à 1,5 × l'écart interquartile · ○ : valeurs extrêmes ·
+                n : nombre de valeurs (boîte pâle si moins de {LOW_COUNT}) · <span className="text-amber-600">partiel</span> : semaine ou mois coupé par la période (bordure en pointillés).
+                Survolez une boîte pour le détail.
               </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {boxplotMetricEntries.map(([key, label]) => (
+                  <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
+                    {(isZoomed, zoomHeight) => (
+                      <BoxPlotChart
+                        data={rawFilteredLogs}
+                        dataKey={key}
+                        title={label}
+                        color={athleteMetrics.colors[key]}
+                        startDate={startDate}
+                        endDate={endDate}
+                        height={isZoomed ? zoomHeight : undefined}
+                        groupBy={boxplotGroupBy}
+                      />
+                    )}
+                  </ZoomableChartCard>
+                ))}
+              </div>
+          </CollapsibleAnalysis>
+        )}
+
+        {/* AFE et analyse réseau : admin uniquement */}
+        {isAdmin && Object.keys(athleteMetrics.labels).length > 0 && (
+          <AdvancedAnalyses
+            user={user}
+            periodLogs={analysisPeriodLogs}
+            athleteLogs={analysisAthleteLogs}
+            metricLabels={athleteMetrics.labels}
+            metricColors={athleteMetrics.colors}
+            sessionTypeLabels={dynamicSessionTypes.labels}
+            globalFilters={analysisGlobalFilters}
+          />
+        )}
+
+        {/* Remarques, repliable */}
+        <CollapsibleAnalysis
+          title="Remarques"
+          icon={MessageSquare}
+          badge={`${remarksList.length} remarque${remarksList.length > 1 ? 's' : ''}`}
+          open={showRemarks}
+          onToggle={() => setShowRemarks(v => !v)}
+        >
+        <Card className="shadow-sm border-0">
+          <CardContent className="pt-6">
+            {remarksList.length === 0 ? (
+              <p className="text-center text-sm text-slate-500 py-6">
+                Aucune remarque sur la période sélectionnée.
+              </p>
+            ) : (
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                {remarksList.map((remark) => (
+                  <div key={remark.id} className="p-3 rounded-lg border border-slate-100 bg-slate-50/50">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <span className="font-medium text-slate-800 text-sm">{remark.athlete_name}</span>
+                      <span className="text-xs text-slate-400 whitespace-nowrap">
+                        {format(parseISO(remark.date), 'dd/MM/yyyy', { locale: fr })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{remark.text}</p>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
+        </CollapsibleAnalysis>
       </div>
     </div>
   );

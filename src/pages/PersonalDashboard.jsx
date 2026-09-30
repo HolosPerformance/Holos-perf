@@ -463,6 +463,7 @@ export default function PersonalDashboard() {
                     color={metricColors[key]}
                     startDate={startDate}
                     endDate={endDate}
+                    advancedStats={{ ema7: true, ema21: true }}
                   />
                 ))}
               </div>

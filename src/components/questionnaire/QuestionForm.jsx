@@ -190,7 +190,7 @@ export default function QuestionForm({
               <div key={ci} className="p-3 bg-white border rounded-lg space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Choix {ci + 1}</span>
-                  {ci >= 4 && <Button type="button" variant="ghost" size="sm" onClick={() => { const c = [...(newQuestion.selectOptions?.choices || [])]; c.splice(ci, 1); setNewQuestion({ ...newQuestion, selectOptions: { ...newQuestion.selectOptions, choices: c } }); }} className="text-red-600"><Trash2 className="w-4 h-4" /></Button>}
+                  {(newQuestion.selectOptions?.choices || []).length > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => { const c = [...(newQuestion.selectOptions?.choices || [])]; c.splice(ci, 1); setNewQuestion({ ...newQuestion, selectOptions: { ...newQuestion.selectOptions, choices: c } }); }} className="text-red-600"><Trash2 className="w-4 h-4" /></Button>}
                 </div>
                 <Input value={choice.label || ''} onChange={(e) => { const c = [...(newQuestion.selectOptions?.choices || [])]; c[ci] = { ...c[ci], label: e.target.value }; setNewQuestion({ ...newQuestion, selectOptions: { ...newQuestion.selectOptions, choices: c } }); }} placeholder="Ex: Très bien" />
                 <div className="flex flex-wrap gap-1">
