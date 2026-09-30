@@ -5,6 +5,7 @@ import { supabaseRaw } from '@/api/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StravaConnect from '@/components/StravaConnect';
+import PushNotificationSetup from '@/components/PushNotificationSetup';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -317,6 +318,11 @@ export default function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Notifications push (athlètes) */}
+      {!isCoach && user?.email && (
+        <PushNotificationSetup athleteEmail={user.email} />
       )}
 
       {/* Message pour coaches avec club */}

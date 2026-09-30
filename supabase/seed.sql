@@ -74,7 +74,7 @@ insert into public.groups (id, name, coach_email, athlete_emails) values
 -- ─── 5b. Questionnaire assigné (lié à la séance) ──────────────────────────────
 insert into public.questionnaire_templates (id, name, description, questions, is_active, assigned_athletes) values
   ('f1000000-0000-0000-0000-000000000001', 'Ressenti du jour', 'Questionnaire post-séance',
-   '[{"id":"rpe","label":"RPE","type":"scale"},{"id":"fatigue","label":"Fatigue","type":"scale"}]'::jsonb,
+   '[{"id":"rpe","label":"RPE","type":"scale","required":true,"scaleOptions":{"min":0,"max":10,"reversed":false,"showNumbers":true,"minLabel":"Très facile","maxLabel":"Maximal","color":"#8b5cf6"}},{"id":"fatigue","label":"Fatigue","type":"scale","required":true,"scaleOptions":{"min":0,"max":100,"reversed":false,"showNumbers":true,"minLabel":"En forme","maxLabel":"Épuisé","color":"#f97316"}}]'::jsonb,
    true, '{alice@holos.test,bob@holos.test,chloe@holos.test}');
 
 -- ─── 6. Séance d'entraînement du jour ─────────────────────────────────────────
