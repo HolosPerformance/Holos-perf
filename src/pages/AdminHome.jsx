@@ -202,7 +202,7 @@ export default function AdminHome() {
             {isCoach ? 'Espace Entraîneur' : 'Panneau d\'Administration'}
           </h1>
           <p className="text-slate-500 text-lg">
-            Bienvenue, {user.first_name || user.full_name} 👋
+            Bienvenue {user.first_name || user.full_name} 👋
           </p>
         </div>
 
