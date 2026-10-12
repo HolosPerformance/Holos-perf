@@ -129,7 +129,7 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
   return (
     <Card className={exporting ? 'border-0 shadow-none bg-white' : 'shadow-sm border-0'}>
       <CardHeader className={exporting ? 'p-2 pb-1' : 'pb-2'}>
-        <CardTitle className={exporting ? 'text-xl font-semibold text-slate-900' : 'text-base font-semibold'}>{title}</CardTitle>
+        <CardTitle className={exporting ? 'text-base font-semibold text-slate-900' : 'text-base font-semibold'}>{title}</CardTitle>
       </CardHeader>
       <CardContent className={exporting ? 'p-0' : undefined}>
         {!hasData ? (
@@ -143,7 +143,7 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
                 {[0, 25, 50, 75, 100].map(v => (
                   <g key={v}>
                     <line x1={PAD_LEFT} x2={totalWidth - PAD_RIGHT} y1={valueToY(v)} y2={valueToY(v)} stroke="#e2e8f0" strokeDasharray="3 3" />
-                    <text x={2} y={valueToY(v) + 4} fontSize={13} fill={AXIS_TEXT_COLOR}>{v}</text>
+                    <text x={2} y={valueToY(v) + 4} fontSize={13} fontWeight={600} fill={AXIS_TEXT_COLOR}>{v}</text>
                   </g>
                 ))}
 
@@ -191,14 +191,15 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
                       {/* Zone de survol sur toute la hauteur de la colonne */}
                       <rect x={cx - slot / 2} y={PAD_TOP} width={slot} height={usableHeight} fill="transparent" />
                       {s && (
-                        <text x={cx} y={axisY + 14} fontSize={slot < 34 ? 9 : 12} textAnchor="middle" fill={faint ? '#d97706' : '#475569'}>
-                          n={s.count}
+                        <text x={cx} y={axisY + 14} fontSize={slot < 34 ? 10 : 12} textAnchor="middle" fill={faint ? '#d97706' : '#475569'}>
+                          {slot < 26 ? s.count : `n=${s.count}`}
                         </text>
                       )}
                       {i % labelEvery === 0 && <text
                         x={cx}
                         y={axisY + 28}
                         fontSize={12}
+                        fontWeight={600}
                         fill={c.partial ? '#d97706' : AXIS_TEXT_COLOR}
                         textAnchor="end"
                         transform={`rotate(-45 ${cx} ${axisY + 28})`}

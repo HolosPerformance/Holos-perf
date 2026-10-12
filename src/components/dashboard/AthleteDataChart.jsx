@@ -126,7 +126,7 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
     <Card className={exporting ? 'border-0 shadow-none bg-white' : 'shadow-sm border-0'}>
       {title && (
         <CardHeader className={exporting ? 'p-2 pb-1' : 'pb-2'}>
-          <CardTitle className={exporting ? 'text-xl font-semibold text-slate-900' : 'text-lg'}>{title}</CardTitle>
+          <CardTitle className={exporting ? 'text-lg text-slate-900' : 'text-lg'}>{title}</CardTitle>
         </CardHeader>
       )}
       <CardContent className={exporting ? 'p-0' : `${title ? 'pt-0' : 'pt-6'}${isMobile ? ' px-2 pb-4' : ''}`}>

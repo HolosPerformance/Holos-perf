@@ -109,7 +109,7 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
   return (
     <Card className={exporting ? 'border-0 shadow-none bg-white' : 'shadow-sm border-0'}>
       <CardHeader className={exporting ? 'p-2 pb-1' : 'pb-2'}>
-        <CardTitle className={exporting ? 'text-xl font-semibold text-slate-900' : 'text-base font-semibold'}>{title}</CardTitle>
+        <CardTitle className={exporting ? 'text-base font-semibold text-slate-900' : 'text-base font-semibold'}>{title}</CardTitle>
       </CardHeader>
       <CardContent className={exporting ? 'p-0' : isMobile ? 'px-2 pb-4' : undefined}>
         <ResponsiveContainer width="100%" height={height}>

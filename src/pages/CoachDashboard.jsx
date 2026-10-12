@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import HistogramChart from '../components/dashboard/HistogramChart';
 import BoxPlotChart, { autoBoxplotGroupBy, LOW_COUNT } from '../components/dashboard/BoxPlotChart';
-import ZoomableChartCard, { EXPORT_CHART_WIDTH } from '../components/dashboard/ZoomableChartCard';
+import ZoomableChartCard, { EXPORT_WIDTH_HALF } from '../components/dashboard/ZoomableChartCard';
 import AdvancedAnalyses from '../components/dashboard/analysis/AdvancedAnalyses';
 import { CollapsibleAnalysis } from '../components/dashboard/analysis/AnalysisParts';
 import MetricSelector from '../components/dashboard/MetricSelector';
@@ -1187,6 +1187,7 @@ export default function CoachDashboard() {
                 key={key}
                 title={label}
                 zoomedHeight={450}
+                exportWidth={EXPORT_WIDTH_HALF}
                 headerExtra={
                   <AdvancedStatsToggle
                     variant="icon"
@@ -1254,8 +1255,8 @@ export default function CoachDashboard() {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {boxplotMetricEntries.map(([key, label]) => (
-                  <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
-                    {(isZoomed, zoomHeight, exporting) => (
+                  <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420} exportWidth={EXPORT_WIDTH_HALF}>
+                    {(isZoomed, zoomHeight, exporting, exportChartWidth) => (
                       <BoxPlotChart
                         data={rawFilteredLogs}
                         dataKey={key}
@@ -1266,7 +1267,7 @@ export default function CoachDashboard() {
                         height={isZoomed ? zoomHeight : undefined}
                         groupBy={boxplotGroupBy}
                         exporting={exporting}
-                        fitWidth={exporting ? EXPORT_CHART_WIDTH : undefined}
+                        fitWidth={exporting ? exportChartWidth : undefined}
                       />
                     )}
                   </ZoomableChartCard>
