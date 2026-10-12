@@ -4,11 +4,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, LineChart } from 'lucide-react';
-import { ADVANCED_STAT_DEFS, REFERENCE_STAT_DEFS, EMA_STAT_DEFS } from '@/lib/advancedStats';
+import { ADVANCED_STAT_DEFS, REFERENCE_STAT_DEFS, EMA_STAT_DEFS, TREND_STAT_DEF } from '@/lib/advancedStats';
 
 const STAT_GROUPS = [
   { title: 'Lignes de référence', defs: REFERENCE_STAT_DEFS },
   { title: 'Moyennes mobiles', defs: EMA_STAT_DEFS },
+  { title: 'Tendance', defs: [TREND_STAT_DEF] },
 ];
 
 // Bouton "statistiques avancées" : en variant="button" (contrôle global, applique

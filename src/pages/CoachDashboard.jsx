@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import HistogramChart from '../components/dashboard/HistogramChart';
 import BoxPlotChart, { autoBoxplotGroupBy, LOW_COUNT } from '../components/dashboard/BoxPlotChart';
-import ZoomableChartCard from '../components/dashboard/ZoomableChartCard';
+import ZoomableChartCard, { EXPORT_CHART_WIDTH } from '../components/dashboard/ZoomableChartCard';
 import AdvancedAnalyses from '../components/dashboard/analysis/AdvancedAnalyses';
 import { CollapsibleAnalysis } from '../components/dashboard/analysis/AnalysisParts';
 import MetricSelector from '../components/dashboard/MetricSelector';
@@ -1132,7 +1132,7 @@ export default function CoachDashboard() {
                 />
               }
             >
-              {(isZoomed, zoomHeight) => (
+              {(isZoomed, zoomHeight, exporting) => (
                 <AthleteDataChart
                   data={groupedChartData}
                   selectedMetrics={selectedMetrics}
@@ -1146,7 +1146,9 @@ export default function CoachDashboard() {
                   height={isZoomed ? zoomHeight : undefined}
                   statLines={evolutionStatLines}
                   emaDefs={evolutionEmaDefs}
+                  showTrend={!!evolutionStats.trend}
                   isZoomed={isZoomed}
+                  exporting={exporting}
                 />
               )}
             </ZoomableChartCard>
@@ -1194,7 +1196,7 @@ export default function CoachDashboard() {
                   />
                 }
               >
-                {(isZoomed, zoomHeight) => (
+                {(isZoomed, zoomHeight, exporting) => (
                   <HistogramChart
                     data={logsWithLabels}
                     dataKey={key}
@@ -1205,6 +1207,7 @@ export default function CoachDashboard() {
                     height={isZoomed ? zoomHeight : undefined}
                     advancedStats={getChartStats(key)}
                     isZoomed={isZoomed}
+                    exporting={exporting}
                   />
                 )}
               </ZoomableChartCard>
@@ -1252,7 +1255,7 @@ export default function CoachDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {boxplotMetricEntries.map(([key, label]) => (
                   <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
-                    {(isZoomed, zoomHeight) => (
+                    {(isZoomed, zoomHeight, exporting) => (
                       <BoxPlotChart
                         data={rawFilteredLogs}
                         dataKey={key}
@@ -1262,6 +1265,8 @@ export default function CoachDashboard() {
                         endDate={endDate}
                         height={isZoomed ? zoomHeight : undefined}
                         groupBy={boxplotGroupBy}
+                        exporting={exporting}
+                        fitWidth={exporting ? EXPORT_CHART_WIDTH : undefined}
                       />
                     )}
                   </ZoomableChartCard>

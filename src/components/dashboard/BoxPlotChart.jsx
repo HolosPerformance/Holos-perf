@@ -14,12 +14,13 @@ const LAYOUT = {
   week: { slot: 72, box: 30 },
   month: { slot: 96, box: 40 },
 };
-const PAD_LEFT = 32;
+const PAD_LEFT = 36;
 const PAD_RIGHT = 12;
 const PAD_TOP = 16;
-const PAD_BOTTOM = 84;
+const PAD_BOTTOM = 110;
 // En dessous de ce nombre de valeurs, la boîte est affichée en pâle
 export const LOW_COUNT = 5;
+const AXIS_TEXT_COLOR = '#0f172a';
 
 // Regroupement par défaut selon la longueur de la période
 export function autoBoxplotGroupBy(startDate, endDate) {
@@ -90,11 +91,10 @@ const fmtNum = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 // Tukey, valeurs extrêmes), sur la période filtrée déjà appliquée aux autres
 // graphiques. Positions en pixels réels pour un rendu net ; défilement
 // horizontal si les colonnes sont nombreuses.
-export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', startDate, endDate, height = 280, groupBy = 'day' }) {
+export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', startDate, endDate, height = 280, groupBy = 'day', exporting = false, fitWidth }) {
   const [hovered, setHovered] = useState(null);
   const start = startDate ? parseISO(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
   const end = endDate ? parseISO(endDate) : new Date();
-  const { slot, box } = LAYOUT[groupBy] || LAYOUT.day;
 
   const columns = useMemo(() => {
     const valuesByBucket = {};
@@ -110,6 +110,15 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
     }));
   }, [data, dataKey, groupBy, startDate, endDate]);
 
+  // À l'export, les colonnes sont réparties sur toute la largeur de l'image
+  const layout = LAYOUT[groupBy] || LAYOUT.day;
+  const slot = fitWidth && columns.length > 0
+    ? (fitWidth - PAD_LEFT - PAD_RIGHT) / columns.length
+    : layout.slot;
+  const box = fitWidth ? Math.min(60, slot * layout.box / layout.slot) : layout.box;
+  // Colonnes très étroites : une étiquette de date sur deux (ou plus) pour éviter le chevauchement
+  const labelEvery = Math.max(1, Math.ceil(18 / slot));
+
   const hasData = columns.some(c => c.stats);
   const usableHeight = height - PAD_TOP - PAD_BOTTOM;
   const valueToY = (v) => PAD_TOP + usableHeight * (1 - v / 100);
@@ -118,23 +127,23 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
   const hoveredColumn = hovered !== null ? columns[hovered] : null;
 
   return (
-    <Card className="shadow-sm border-0">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">{title}</CardTitle>
+    <Card className={exporting ? 'border-0 shadow-none bg-white' : 'shadow-sm border-0'}>
+      <CardHeader className={exporting ? 'p-2 pb-1' : 'pb-2'}>
+        <CardTitle className={exporting ? 'text-xl font-semibold text-slate-900' : 'text-base font-semibold'}>{title}</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className={exporting ? 'p-0' : undefined}>
         {!hasData ? (
           <div style={{ height }} className="flex items-center justify-center text-sm text-slate-400">
             Pas de données sur cette période
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className={exporting ? undefined : 'overflow-x-auto'}>
             <div className="relative" style={{ width: totalWidth, minWidth: '100%' }}>
               <svg width={totalWidth} height={height} onMouseLeave={() => setHovered(null)}>
                 {[0, 25, 50, 75, 100].map(v => (
                   <g key={v}>
                     <line x1={PAD_LEFT} x2={totalWidth - PAD_RIGHT} y1={valueToY(v)} y2={valueToY(v)} stroke="#e2e8f0" strokeDasharray="3 3" />
-                    <text x={2} y={valueToY(v) + 3} fontSize={10} fill="#94a3b8">{v}</text>
+                    <text x={2} y={valueToY(v) + 4} fontSize={13} fill={AXIS_TEXT_COLOR}>{v}</text>
                   </g>
                 ))}
 
@@ -182,20 +191,20 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
                       {/* Zone de survol sur toute la hauteur de la colonne */}
                       <rect x={cx - slot / 2} y={PAD_TOP} width={slot} height={usableHeight} fill="transparent" />
                       {s && (
-                        <text x={cx} y={axisY + 13} fontSize={10} textAnchor="middle" fill={faint ? '#d97706' : '#64748b'}>
+                        <text x={cx} y={axisY + 14} fontSize={slot < 34 ? 9 : 12} textAnchor="middle" fill={faint ? '#d97706' : '#475569'}>
                           n={s.count}
                         </text>
                       )}
-                      <text
+                      {i % labelEvery === 0 && <text
                         x={cx}
-                        y={axisY + 26}
-                        fontSize={10}
-                        fill={c.partial ? '#d97706' : '#94a3b8'}
+                        y={axisY + 28}
+                        fontSize={12}
+                        fill={c.partial ? '#d97706' : AXIS_TEXT_COLOR}
                         textAnchor="end"
-                        transform={`rotate(-45 ${cx} ${axisY + 26})`}
+                        transform={`rotate(-45 ${cx} ${axisY + 28})`}
                       >
                         {labelText}
-                      </text>
+                      </text>}
                     </g>
                   );
                 })}
