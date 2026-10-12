@@ -759,6 +759,7 @@ export default function CoachDashboard() {
               id: `${log.id}-${q.id}`,
               date: log.training_date,
               athlete_name: log.athlete_name,
+              question: q.label || q.athleteLabel,
               text: String(value).trim(),
             });
           }
@@ -768,6 +769,7 @@ export default function CoachDashboard() {
           id: `${log.id}-commentaire`,
           date: log.training_date,
           athlete_name: log.athlete_name,
+          question: 'Commentaire',
           text: String(log.commentaire).trim(),
         });
       }
@@ -1305,6 +1307,9 @@ export default function CoachDashboard() {
                         {format(parseISO(remark.date), 'dd/MM/yyyy', { locale: fr })}
                       </span>
                     </div>
+                    {remark.question && (
+                      <p className="text-xs font-semibold text-indigo-700 mb-1">{remark.question}</p>
+                    )}
                     <p className="text-sm text-slate-600 whitespace-pre-wrap">{remark.text}</p>
                   </div>
                 ))}
