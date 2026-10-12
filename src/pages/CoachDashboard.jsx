@@ -18,6 +18,7 @@ import MetricSelector from '../components/dashboard/MetricSelector';
 import StatCard from '../components/dashboard/StatCard';
 import SummaryStatsTable from '../components/dashboard/SummaryStatsTable';
 import AdvancedStatsToggle from '../components/dashboard/AdvancedStatsToggle';
+import { highlightColors, buildHighlightDays } from '../components/dashboard/sessionHighlights';
 import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetricStats } from '@/lib/advancedStats';
 import {
   Users, Activity, TrendingUp, Calendar, Filter,
@@ -132,6 +133,15 @@ export default function CoachDashboard() {
   // Regroupement des boxplots : null = automatique selon la longueur de la période
   const [boxplotGroupByChoice, setBoxplotGroupByChoice] = useState(null);
   const [showRemarks, setShowRemarks] = useState(false);
+  // Types de séance mis en évidence sur les graphiques (mémorisés dans le navigateur)
+  const [highlightedTypes, setHighlightedTypes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('dashboardHighlightedTypes') || '[]'); } catch { return []; }
+  });
+  const toggleHighlightedType = (key) => setHighlightedTypes(prev => {
+    const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
+    try { localStorage.setItem('dashboardHighlightedTypes', JSON.stringify(next)); } catch { /* stockage indisponible */ }
+    return next;
+  });
 
   useEffect(() => {
     if (user?.metric_colors) {
@@ -879,6 +889,19 @@ export default function CoachDashboard() {
   });
   const evolutionEmaDefs = EMA_STAT_DEFS.filter(def => evolutionStats[def.key]);
 
+  // Types proposés à la mise en évidence : ceux présents dans les saisies des
+  // athlètes sélectionnés (hors « Questionnaire » / « Autre », qui n'en sont pas)
+  const presentSessionTypes = new Set(userFilteredLogs.map(l => l.session_type));
+  const highlightableTypes = Object.entries(dynamicSessionTypes.labels)
+    .filter(([key]) => key !== 'questionnaire' && key !== 'inconnu' && presentSessionTypes.has(key));
+  const highlightTypeColors = highlightColors(highlightableTypes);
+  const activeHighlightTypes = highlightableTypes
+    .filter(([key]) => highlightedTypes.includes(key))
+    .map(([key, label]) => ({ key, label, color: highlightTypeColors[key] }));
+  const chartHighlights = activeHighlightTypes.length > 0
+    ? { types: activeHighlightTypes, days: buildHighlightDays(filteredLogs, activeHighlightTypes) }
+    : undefined;
+
   const toggleSessionTypeFilter = (type) => {
     setSessionTypeFilters(prev =>
       prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
@@ -1086,6 +1109,30 @@ export default function CoachDashboard() {
                 </div>
               )}
             </div>
+            {highlightableTypes.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-slate-100">
+                <Label className="text-sm text-slate-600 mr-1">Mettre en évidence :</Label>
+                {highlightableTypes.map(([key, label]) => {
+                  const active = highlightedTypes.includes(key);
+                  const color = highlightTypeColors[key];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleHighlightedType(key)}
+                      aria-pressed={active}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition-colors"
+                      style={active
+                        ? { backgroundColor: `${color}22`, borderColor: color, color: '#0f172a' }
+                        : { backgroundColor: '#fff', borderColor: '#e2e8f0', color: '#64748b' }}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color, opacity: active ? 1 : 0.4 }} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1147,6 +1194,7 @@ export default function CoachDashboard() {
                   statLines={evolutionStatLines}
                   emaDefs={evolutionEmaDefs}
                   showTrend={!!evolutionStats.trend}
+                  highlights={chartHighlights}
                   isZoomed={isZoomed}
                   exporting={exporting}
                 />
@@ -1207,6 +1255,7 @@ export default function CoachDashboard() {
                     endDate={endDate}
                     height={isZoomed ? zoomHeight : undefined}
                     advancedStats={getChartStats(key)}
+                    highlights={chartHighlights}
                     isZoomed={isZoomed}
                     exporting={exporting}
                   />
@@ -1266,6 +1315,7 @@ export default function CoachDashboard() {
                         endDate={endDate}
                         height={isZoomed ? zoomHeight : undefined}
                         groupBy={boxplotGroupBy}
+                        highlights={chartHighlights}
                         exporting={exporting}
                         fitWidth={exporting ? exportChartWidth : undefined}
                       />
