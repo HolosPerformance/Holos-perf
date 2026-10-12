@@ -230,6 +230,8 @@ export default function CoachFillAthleteQuestionnaire() {
                 <CustomQuestionnaireForm
                   questionnaire={activeTemplate}
                   user={athleteUser}
+                  // L'entraîneur remplit à la place de l'athlète : toujours en français
+                  language="fr"
                   onSuccess={handleSuccess}
                   existingResponseId={existingResponseId}
                 />

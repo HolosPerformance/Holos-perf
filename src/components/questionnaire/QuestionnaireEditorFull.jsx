@@ -18,6 +18,8 @@ import {
   ArrowLeft, Plus, Edit2, Trash2, Save, X, GripVertical, Copy, Database, ClipboardList
 } from 'lucide-react';
 import QuestionForm from './QuestionForm';
+import { QuestionnaireTranslations } from './TranslationControls';
+import { BASE_LANGUAGE, templateLanguages, languageInfo, localizeTemplate, localizeQuestion, isQuestionTranslated } from '@/lib/questionnaireI18n';
 
 const EMPTY_QUESTION = {
   id: '', label: '', athleteLabel: '', description: '', type: 'scale', required: false,
@@ -31,12 +33,26 @@ const EMPTY_QUESTION = {
 
 
 
-function AthletePreview({ questionnaire }) {
+function AthletePreview({ questionnaire: original }) {
   const [responses, setResponses] = useState({});
+  const languages = templateLanguages(original);
+  const [lang, setLang] = useState(BASE_LANGUAGE);
+  const questionnaire = localizeTemplate(original, lang);
   return (
     <Card className="bg-white">
       <CardContent className="p-6">
         <div className="space-y-6">
+          {languages.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-slate-500">Langue de l'aperçu :</span>
+              {languages.map(code => (
+                <button key={code} type="button" onClick={() => setLang(code)}
+                  className={`px-3 py-1 rounded-full text-sm border ${code === lang ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>
+                  {languageInfo(code).flag} {languageInfo(code).label}
+                </button>
+              ))}
+            </div>
+          )}
           {questionnaire.style?.headerImage ? (
             <div className="flex items-start gap-4">
               <img src={questionnaire.style.headerImage} alt="Logo" className="w-16 h-16 object-cover rounded-lg" onError={(e) => { e.target.style.display = 'none'; }} />
@@ -52,7 +68,8 @@ function AthletePreview({ questionnaire }) {
             </div>
           )}
           <div className="space-y-6">
-            {questionnaire.questions.map((q, index) => {
+            {questionnaire.questions.map((originalQuestion, index) => {
+              const q = localizeQuestion(originalQuestion, lang);
               if (q.condition) {
                 const expectedValues = q.condition.expectedValues?.length > 0
                   ? q.condition.expectedValues
@@ -97,11 +114,13 @@ function AthletePreview({ questionnaire }) {
                       {q.selectOptions.choices.map((choice, ci) => {
                         const isBlack = ['#000000', '#000', 'black'].includes(choice.color?.toLowerCase());
                         const label = choice.label || `Choix ${ci + 1}`;
+                        // Valeur de référence = libellé d'origine (les conditions s'y rapportent)
+                        const value = originalQuestion.selectOptions?.choices?.[ci]?.label || label;
                         return (
                           <button key={ci} type="button"
-                            onClick={() => setResponses({ ...responses, [q.id]: label })}
+                            onClick={() => setResponses({ ...responses, [q.id]: value })}
                             className="flex items-center gap-3 p-3 border-2 rounded-lg transition-all hover:scale-105"
-                            style={{ backgroundColor: choice.color || '#ffffff', borderColor: '#000', boxShadow: responses[q.id] === label ? '0 0 0 3px rgba(0,0,0,0.35)' : 'none' }}
+                            style={{ backgroundColor: choice.color || '#ffffff', borderColor: '#000', boxShadow: responses[q.id] === value ? '0 0 0 3px rgba(0,0,0,0.35)' : 'none' }}
                           >
                             {choice.image && <div className="w-16 h-16 rounded overflow-hidden"><img src={choice.image} alt={label} className="w-full h-full object-cover" /></div>}
                             <div className="flex-1 text-left font-medium" style={{ color: isBlack ? '#fff' : '#000' }}>{label}</div>
@@ -127,8 +146,33 @@ export default function QuestionnaireEditorFull({ user, template, onSave, onCanc
     description: template?.description || '',
     questions: template?.questions || [],
     is_active: template?.is_active ?? true,
-    style: template?.style || { headerImage: '' }
+    style: template?.style || { headerImage: '' },
+    translations: template?.translations || {}
   });
+  // Langues ajoutées au questionnaire (en plus du français)
+  const translationLanguages = templateLanguages(formData).filter(code => code !== BASE_LANGUAGE);
+
+  const addLanguage = (code) => setFormData(prev => {
+    const current = (prev.translations?.languages || []);
+    if (current.includes(code)) return prev;
+    return { ...prev, translations: { ...(prev.translations || {}), languages: [...current, code] } };
+  });
+
+  const removeLanguage = (code) => {
+    if (!window.confirm(`Supprimer la traduction ${languageInfo(code).label} du questionnaire et de toutes ses questions ?`)) return;
+    const without = (obj) => { const copy = { ...(obj || {}) }; delete copy[code]; return copy; };
+    setFormData(prev => ({
+      ...prev,
+      translations: {
+        ...(prev.translations || {}),
+        languages: (prev.translations?.languages || []).filter(l => l !== code),
+        name: without(prev.translations?.name),
+        description: without(prev.translations?.description),
+      },
+      questions: prev.questions.map(q => q.translations ? { ...q, translations: without(q.translations) } : q),
+    }));
+    setNewQuestion(prev => prev.translations ? { ...prev, translations: without(prev.translations) } : prev);
+  };
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
@@ -283,6 +327,7 @@ export default function QuestionnaireEditorFull({ user, template, onSave, onCanc
                 </div>
                 <div className="space-y-2"><Label>Nom du questionnaire *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required placeholder="Ex: Évaluation mensuelle" /></div>
                 <div className="space-y-2"><Label>Description</Label><Textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Décrivez l'objectif de ce questionnaire" rows={3} /></div>
+                <QuestionnaireTranslations formData={formData} setFormData={setFormData} languages={translationLanguages} onAddLanguage={addLanguage} onRemoveLanguage={removeLanguage} />
               </CardContent>
             </Card>
             <Card>
@@ -314,6 +359,12 @@ export default function QuestionnaireEditorFull({ user, template, onSave, onCanc
                                         <Badge variant="outline" className="text-xs">{q.type}</Badge>
                                         {q.required && <Badge variant="outline" className="text-xs bg-amber-50">Obligatoire</Badge>}
                                         {q.condition && <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700">Conditionnelle</Badge>}
+                                        {translationLanguages.map(code => (
+                                          <Badge key={code} variant="outline" className={`text-xs ${isQuestionTranslated(q, code) ? 'bg-teal-50 text-teal-700 border-teal-200' : 'text-slate-400 border-dashed'}`}
+                                            title={isQuestionTranslated(q, code) ? `Traduite en ${languageInfo(code).label}` : `Pas encore traduite en ${languageInfo(code).label}`}>
+                                            {languageInfo(code).flag} {isQuestionTranslated(q, code) ? '✓' : '—'}
+                                          </Badge>
+                                        ))}
                                       </div>
                                     </div>
                                     <div className="flex gap-1">
@@ -336,7 +387,7 @@ export default function QuestionnaireEditorFull({ user, template, onSave, onCanc
                                     </div>
                                   </div>
                                 </div>
-                                {editingQuestionId === q.id && <QuestionForm isEditing={true} newQuestion={newQuestion} setNewQuestion={setNewQuestion} formData={formData} editingQuestionId={editingQuestionId} addQuestion={addQuestion} cancelEdit={cancelEdit} previewValue={previewValue} setPreviewValue={setPreviewValue} />}
+                                {editingQuestionId === q.id && <QuestionForm isEditing={true} newQuestion={newQuestion} setNewQuestion={setNewQuestion} formData={formData} editingQuestionId={editingQuestionId} addQuestion={addQuestion} cancelEdit={cancelEdit} previewValue={previewValue} setPreviewValue={setPreviewValue} languages={translationLanguages} onAddLanguage={addLanguage} />}
                               </div>
                             )}
                           </Draggable>
@@ -356,7 +407,7 @@ export default function QuestionnaireEditorFull({ user, template, onSave, onCanc
                     )}
                   </div>
                 )}
-                {isAddingQuestion && !editingQuestionId && <QuestionForm isEditing={false} newQuestion={newQuestion} setNewQuestion={setNewQuestion} formData={formData} editingQuestionId={editingQuestionId} addQuestion={addQuestion} cancelEdit={cancelEdit} previewValue={previewValue} setPreviewValue={setPreviewValue} />}
+                {isAddingQuestion && !editingQuestionId && <QuestionForm isEditing={false} newQuestion={newQuestion} setNewQuestion={setNewQuestion} formData={formData} editingQuestionId={editingQuestionId} addQuestion={addQuestion} cancelEdit={cancelEdit} previewValue={previewValue} setPreviewValue={setPreviewValue} languages={translationLanguages} onAddLanguage={addLanguage} />}
               </CardContent>
             </Card>
             <div className="flex flex-col sm:flex-row justify-end gap-3">

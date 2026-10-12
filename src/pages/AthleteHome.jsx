@@ -23,6 +23,7 @@ import {
 import { motion } from 'framer-motion';
 import DailyQuestionnaire from '../components/questionnaire/DailyQuestionnaire';
 import CustomQuestionnaireForm from '../components/questionnaire/CustomQuestionnaireForm';
+import { athleteLanguage, localizeTemplate } from '@/lib/questionnaireI18n';
 import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import EventCalendar from '../components/calendar/EventCalendar';
 import { format, parseISO, subDays } from 'date-fns';
@@ -403,7 +404,7 @@ export default function AthleteHome() {
                           <div className="flex-1">
                             <CardTitle className="flex items-center gap-2">
                               <ClipboardList className={`w-5 h-5 ${isYesterday ? 'text-amber-500' : 'text-blue-600'}`} />
-                              {assignedQuestionnaires[0]?.name || 'Questionnaire Quotidien'}
+                              {localizeTemplate(assignedQuestionnaires[0], athleteLanguage(assignedQuestionnaires[0], user?.email))?.name || 'Questionnaire Quotidien'}
                             </CardTitle>
                             <CardDescription>
                               {isYesterday
@@ -496,7 +497,7 @@ export default function AthleteHome() {
                         {linkedQuestionnaire && (
                           <div className="mt-3 p-3 bg-slate-50 rounded-lg">
                             <p className="text-sm font-medium text-slate-700 mb-2">
-                              Questionnaire lié: {linkedQuestionnaire.name}
+                              Questionnaire lié: {localizeTemplate(linkedQuestionnaire, athleteLanguage(linkedQuestionnaire, user?.email)).name}
                             </p>
                             {isEventFinished ? (
                               <Button

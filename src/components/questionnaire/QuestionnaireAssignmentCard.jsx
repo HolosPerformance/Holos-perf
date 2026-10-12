@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, UserCheck, Save, X, GitBranch, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { AthleteLanguageSelect, AssignedLanguagesSummary, cleanAthleteLanguages } from './TranslationControls';
 
 export default function QuestionnaireAssignmentCard({ template, allTemplates = [], onEditCopy }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -15,6 +16,7 @@ export default function QuestionnaireAssignmentCard({ template, allTemplates = [
   const [athleteSearch, setAthleteSearch] = useState('');
   const [assignedCoaches, setAssignedCoaches] = useState(template.assigned_coaches || []);
   const [showCopies, setShowCopies] = useState(false);
+  const [athleteLanguages, setAthleteLanguages] = useState(template.athlete_languages || {});
   const queryClient = useQueryClient();
 
   // Copies de ce template pour chaque coach
@@ -60,13 +62,15 @@ export default function QuestionnaireAssignmentCard({ template, allTemplates = [
     updateMutation.mutate({
       ...template,
       assigned_coaches: assignedCoaches,
-      assigned_athletes: assignedAthletes
+      assigned_athletes: assignedAthletes,
+      athlete_languages: cleanAthleteLanguages(athleteLanguages, assignedAthletes)
     });
   };
 
   const handleCancel = () => {
     setAssignedCoaches(template.assigned_coaches || []);
     setAssignedAthletes(template.assigned_athletes || []);
+    setAthleteLanguages(template.athlete_languages || {});
     setIsEditing(false);
   };
 
@@ -102,6 +106,7 @@ export default function QuestionnaireAssignmentCard({ template, allTemplates = [
                   <strong>{assignedAthletes.length}</strong> athlète(s)
                 </span>
               </div>
+              <AssignedLanguagesSummary template={template} assignedEmails={assignedAthletes} athleteLanguages={athleteLanguages} />
             </div>
             {/* Section copies par coach */}
             {copies.length > 0 && (
@@ -232,6 +237,13 @@ export default function QuestionnaireAssignmentCard({ template, allTemplates = [
                     <p className="font-medium text-xs text-slate-800 truncate">{athlete.full_name}</p>
                     <p className="text-xs text-slate-500 truncate">{athlete.email}</p>
                   </div>
+                  {assignedAthletes.includes(athlete.email) && (
+                    <AthleteLanguageSelect
+                      template={template}
+                      value={athleteLanguages[athlete.email]}
+                      onChange={(lang) => setAthleteLanguages({ ...athleteLanguages, [athlete.email]: lang })}
+                    />
+                  )}
                 </label>
               ))}
               {filteredAthletes.length === 0 && (
