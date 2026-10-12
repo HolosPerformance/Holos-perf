@@ -12,12 +12,55 @@ export const ADVANCED_STAT_DEFS = [
   { key: 'q3', label: 'Q3', color: '#f97316', dash: '1 3', kind: 'reference' },
   { key: 'ema7', label: 'MME 7j', color: '#f59e0b', dash: undefined, kind: 'ema', period: 7 },
   { key: 'ema21', label: 'MME 21j', color: '#3b82f6', dash: '5 5', kind: 'ema', period: 21 },
+  { key: 'trend', label: 'Droite de tendance', color: '#0f172a', dash: undefined, kind: 'trend' },
 ];
 
 export const REFERENCE_STAT_DEFS = ADVANCED_STAT_DEFS.filter(d => d.kind === 'reference');
 export const EMA_STAT_DEFS = ADVANCED_STAT_DEFS.filter(d => d.kind === 'ema');
+export const TREND_STAT_DEF = ADVANCED_STAT_DEFS.find(d => d.kind === 'trend');
 
-export const EMPTY_ADVANCED_STATS = { mean: false, median: false, q1: false, q3: false, ema7: false, ema21: false };
+export const EMPTY_ADVANCED_STATS = { mean: false, median: false, q1: false, q3: false, ema7: false, ema21: false, trend: false };
+
+// Droite de tendance f(x) = a·x + b par la méthode des moindres carrés, où x est
+// le nombre de jours écoulés depuis `startDate`. Seules les saisies comprises
+// dans la période [startDate, endDate] sont prises en compte ; les jours sans
+// saisie sont ignorés (et non comptés comme 0).
+// `points` : [{ date: 'yyyy-MM-dd', value: number }]
+// Retourne { slope, intercept, valueAt(dateStr) } ou null si moins de 2 jours distincts.
+export function computeLinearTrend(points, startDate, endDate) {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const toDay = (dateStr) => Math.round(Date.parse(`${dateStr.slice(0, 10)}T00:00:00Z`) / DAY_MS);
+  const startDay = toDay(startDate);
+  const endDay = toDay(endDate);
+
+  const xy = (points || [])
+    .filter(p => p.value != null && !Number.isNaN(p.value) && p.date)
+    .map(p => ({ x: toDay(p.date) - startDay, y: p.value }))
+    .filter(p => p.x >= 0 && p.x <= endDay - startDay);
+
+  if (new Set(xy.map(p => p.x)).size < 2) return null;
+
+  const n = xy.length;
+  const meanX = xy.reduce((acc, p) => acc + p.x, 0) / n;
+  const meanY = xy.reduce((acc, p) => acc + p.y, 0) / n;
+  const sxy = xy.reduce((acc, p) => acc + (p.x - meanX) * (p.y - meanY), 0);
+  const sxx = xy.reduce((acc, p) => acc + (p.x - meanX) ** 2, 0);
+  const slope = sxy / sxx;
+  const intercept = meanY - slope * meanX;
+
+  return {
+    slope,
+    intercept,
+    valueAt: (dateStr) => Math.round((slope * (toDay(dateStr) - startDay) + intercept) * 10) / 10,
+  };
+}
+
+// Pente formatée pour la légende, ex. « +0,8/j »
+export function formatSlope(slope) {
+  const rounded = Math.round(slope * 10) / 10;
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${String(rounded).replace('.', ',')}/j`;
+}
 
 // Moyenne mobile exponentielle ; les valeurs nulles restent nulles et ne
 // modifient pas la moyenne en cours.

@@ -6,10 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { UserCheck, Save, X, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import { AthleteLanguageSelect, AssignedLanguagesSummary, cleanAthleteLanguages } from './TranslationControls';
 
 export default function CoachQuestionnaireAssignment({ template, coachEmail }) {
   const [isEditing, setIsEditing] = useState(false);
   const [assignedAthletes, setAssignedAthletes] = useState(template.assigned_athletes || []);
+  const [athleteLanguages, setAthleteLanguages] = useState(template.athlete_languages || {});
   const queryClient = useQueryClient();
 
   const updateMutation = useMutation({
@@ -45,12 +47,13 @@ export default function CoachQuestionnaireAssignment({ template, coachEmail }) {
   const handleSave = () => {
     updateMutation.mutate({
       id: template.id,
-      data: { assigned_athletes: assignedAthletes }
+      data: { assigned_athletes: assignedAthletes, athlete_languages: cleanAthleteLanguages(athleteLanguages, assignedAthletes) }
     });
   };
 
   const handleCancel = () => {
     setAssignedAthletes(template.assigned_athletes || []);
+    setAthleteLanguages(template.athlete_languages || {});
     setIsEditing(false);
   };
 
@@ -89,6 +92,7 @@ export default function CoachQuestionnaireAssignment({ template, coachEmail }) {
             <div className="text-sm">
               <span className="text-slate-600"><strong>{athletesAssignedCount}</strong> de mes athlètes assigné(s)</span>
             </div>
+            <AssignedLanguagesSummary template={template} assignedEmails={coachAthletes.filter(e => assignedAthletes.includes(e))} athleteLanguages={athleteLanguages} />
           </div>
         </CardContent>
       </Card>
@@ -128,6 +132,13 @@ export default function CoachQuestionnaireAssignment({ template, coachEmail }) {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-slate-800 truncate">{athleteEmail}</p>
                       </div>
+                      {isAssigned && (
+                        <AthleteLanguageSelect
+                          template={template}
+                          value={athleteLanguages[athleteEmail]}
+                          onChange={(lang) => setAthleteLanguages({ ...athleteLanguages, [athleteEmail]: lang })}
+                        />
+                      )}
                     </label>
                   );
                 })

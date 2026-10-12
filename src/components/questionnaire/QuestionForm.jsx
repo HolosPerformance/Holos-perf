@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Save, X, Plus, Trash2 } from 'lucide-react';
+import { QuestionTranslations } from './TranslationControls';
 
 const COLORS = [
   { name: 'Rouge', value: '#ea4335' }, { name: 'Orange', value: '#ff6d00' },
@@ -25,6 +26,8 @@ export default function QuestionForm({
   cancelEdit,
   previewValue,
   setPreviewValue,
+  languages = [],
+  onAddLanguage,
 }) {
   return (
     <div className={`space-y-4 p-4 rounded-lg ${isEditing ? 'mt-4 border-2 border-blue-300 bg-blue-50' : 'border-t pt-4 bg-slate-50'}`}>
@@ -190,7 +193,15 @@ export default function QuestionForm({
               <div key={ci} className="p-3 bg-white border rounded-lg space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Choix {ci + 1}</span>
-                  {(newQuestion.selectOptions?.choices || []).length > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => { const c = [...(newQuestion.selectOptions?.choices || [])]; c.splice(ci, 1); setNewQuestion({ ...newQuestion, selectOptions: { ...newQuestion.selectOptions, choices: c } }); }} className="text-red-600"><Trash2 className="w-4 h-4" /></Button>}
+                  {(newQuestion.selectOptions?.choices || []).length > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => {
+                    const c = [...(newQuestion.selectOptions?.choices || [])]; c.splice(ci, 1);
+                    // Garder les choix traduits alignés sur les choix d'origine
+                    const translations = Object.fromEntries(Object.entries(newQuestion.translations || {}).map(([lang, t]) => {
+                      const choices = [...(t.choices || [])]; choices.splice(ci, 1);
+                      return [lang, { ...t, choices }];
+                    }));
+                    setNewQuestion({ ...newQuestion, selectOptions: { ...newQuestion.selectOptions, choices: c }, translations });
+                  }} className="text-red-600"><Trash2 className="w-4 h-4" /></Button>}
                 </div>
                 <Input value={choice.label || ''} onChange={(e) => { const c = [...(newQuestion.selectOptions?.choices || [])]; c[ci] = { ...c[ci], label: e.target.value }; setNewQuestion({ ...newQuestion, selectOptions: { ...newQuestion.selectOptions, choices: c } }); }} placeholder="Ex: Très bien" />
                 <div className="flex flex-wrap gap-1">
@@ -206,6 +217,10 @@ export default function QuestionForm({
               <Plus className="w-4 h-4" />Nouveau choix
             </Button>
           </div>
+        )}
+
+        {onAddLanguage && (
+          <QuestionTranslations question={newQuestion} setQuestion={setNewQuestion} languages={languages} onAddLanguage={onAddLanguage} />
         )}
       </div>
       <div className="flex gap-2">

@@ -2,13 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Safe area insets for mobile PWA (viewport-fit=cover) */
-@media (max-width: 767px) {
+/* Safe area insets for mobile PWA (viewport-fit=cover). Mobile header up to
+   1023px wide so that phones in landscape also get it. */
+@media (max-width: 1023px) {
   .mobile-header {
     padding-top: env(safe-area-inset-top, 0px);
   }
   .main-below-header {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 4rem);
+    padding-top: calc(env(safe-area-inset-top, 0px) + 3.75rem);
   }
 }
 

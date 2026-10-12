@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import HistogramChart from '../components/dashboard/HistogramChart';
 import BoxPlotChart, { autoBoxplotGroupBy, LOW_COUNT } from '../components/dashboard/BoxPlotChart';
-import ZoomableChartCard from '../components/dashboard/ZoomableChartCard';
+import ZoomableChartCard, { EXPORT_CHART_WIDTH } from '../components/dashboard/ZoomableChartCard';
 import AdvancedAnalyses from '../components/dashboard/analysis/AdvancedAnalyses';
 import { CollapsibleAnalysis } from '../components/dashboard/analysis/AnalysisParts';
 import MetricSelector from '../components/dashboard/MetricSelector';
@@ -759,6 +759,7 @@ export default function CoachDashboard() {
               id: `${log.id}-${q.id}`,
               date: log.training_date,
               athlete_name: log.athlete_name,
+              question: q.label || q.athleteLabel,
               text: String(value).trim(),
             });
           }
@@ -768,6 +769,7 @@ export default function CoachDashboard() {
           id: `${log.id}-commentaire`,
           date: log.training_date,
           athlete_name: log.athlete_name,
+          question: 'Commentaire',
           text: String(log.commentaire).trim(),
         });
       }
@@ -887,7 +889,7 @@ export default function CoachDashboard() {
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 md:mb-8 gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-800">
               {isCoach ? 'Dashboard Entraineur 🏆' : isAdmin ? 'Dashboard Admin 🏆' : 'Mes Données 📊'}
@@ -896,7 +898,7 @@ export default function CoachDashboard() {
               {isCoach ? `Suivi du groupe ${coachGroup?.name || ''}` : isAdmin ? 'Suivi de vos athlètes' : 'Suivi de mes entraînements'}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
             {(isAdmin || isCoach) && (
               <Link to={isAdmin ? createPageUrl('AdminHome') : isIndividualView ? createPageUrl('CoachHomeIndividual') : createPageUrl('CoachHome')}>
                 <Button variant="outline" className="gap-2">
@@ -946,7 +948,7 @@ export default function CoachDashboard() {
                 {(allGroups.length > 0 || allClubs.length > 0) && (
                   <div className="flex flex-col gap-3">
                     {allGroups.length > 0 && (
-                      <div className="flex items-start gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4">
                         <Label className="text-sm font-medium text-slate-700 whitespace-nowrap mt-1">Groupes :</Label>
                         <div className="flex-1 flex flex-wrap gap-x-4 gap-y-2">
                           {allGroups.map(group => (
@@ -966,7 +968,7 @@ export default function CoachDashboard() {
                     )}
 
                     {allClubs.length > 0 && (
-                      <div className="flex items-start gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4">
                         <Label className="text-sm font-medium text-slate-700 whitespace-nowrap mt-1">Clubs :</Label>
                         <div className="flex-1 flex flex-wrap gap-x-4 gap-y-2">
                           {allClubs.map(club => (
@@ -987,8 +989,8 @@ export default function CoachDashboard() {
                   </div>
                 )}
 
-                <div className="flex items-start gap-4">
-                  <Label className="text-sm font-medium text-slate-700 whitespace-nowrap mt-3">Athlètes :</Label>
+                <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4">
+                  <Label className="text-sm font-medium text-slate-700 whitespace-nowrap sm:mt-3">Athlètes :</Label>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2 mb-2">
                       <Search className="w-4 h-4 text-slate-400" />
@@ -1130,7 +1132,7 @@ export default function CoachDashboard() {
                 />
               }
             >
-              {(isZoomed, zoomHeight) => (
+              {(isZoomed, zoomHeight, exporting) => (
                 <AthleteDataChart
                   data={groupedChartData}
                   selectedMetrics={selectedMetrics}
@@ -1144,7 +1146,9 @@ export default function CoachDashboard() {
                   height={isZoomed ? zoomHeight : undefined}
                   statLines={evolutionStatLines}
                   emaDefs={evolutionEmaDefs}
+                  showTrend={!!evolutionStats.trend}
                   isZoomed={isZoomed}
+                  exporting={exporting}
                 />
               )}
             </ZoomableChartCard>
@@ -1192,7 +1196,7 @@ export default function CoachDashboard() {
                   />
                 }
               >
-                {(isZoomed, zoomHeight) => (
+                {(isZoomed, zoomHeight, exporting) => (
                   <HistogramChart
                     data={logsWithLabels}
                     dataKey={key}
@@ -1203,6 +1207,7 @@ export default function CoachDashboard() {
                     height={isZoomed ? zoomHeight : undefined}
                     advancedStats={getChartStats(key)}
                     isZoomed={isZoomed}
+                    exporting={exporting}
                   />
                 )}
               </ZoomableChartCard>
@@ -1250,7 +1255,7 @@ export default function CoachDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {boxplotMetricEntries.map(([key, label]) => (
                   <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
-                    {(isZoomed, zoomHeight) => (
+                    {(isZoomed, zoomHeight, exporting) => (
                       <BoxPlotChart
                         data={rawFilteredLogs}
                         dataKey={key}
@@ -1260,6 +1265,8 @@ export default function CoachDashboard() {
                         endDate={endDate}
                         height={isZoomed ? zoomHeight : undefined}
                         groupBy={boxplotGroupBy}
+                        exporting={exporting}
+                        fitWidth={exporting ? EXPORT_CHART_WIDTH : undefined}
                       />
                     )}
                   </ZoomableChartCard>
@@ -1305,6 +1312,9 @@ export default function CoachDashboard() {
                         {format(parseISO(remark.date), 'dd/MM/yyyy', { locale: fr })}
                       </span>
                     </div>
+                    {remark.question && (
+                      <p className="text-xs font-semibold text-indigo-700 mb-1">{remark.question}</p>
+                    )}
                     <p className="text-sm text-slate-600 whitespace-pre-wrap">{remark.text}</p>
                   </div>
                 ))}
