@@ -133,11 +133,14 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
               allowDataOverflow
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend
-              iconType="line"
-              wrapperStyle={{ ...style.legendStyle, paddingTop: '8px' }}
-              iconSize={12}
-            />
+            {/* Sur téléphone, la légende « Valeur » seule n'apporte rien : masquée */}
+            {(!isMobile || Object.values(advancedStats || {}).some(Boolean)) && (
+              <Legend
+                iconType="line"
+                wrapperStyle={{ ...style.legendStyle, paddingTop: '8px' }}
+                iconSize={12}
+              />
+            )}
             {competitionIndices.map((index) => (
               <ReferenceLine
                 key={`competition-${index}`}

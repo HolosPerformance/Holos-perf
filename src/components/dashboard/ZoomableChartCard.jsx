@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Maximize2, Minimize2, Camera, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import html2canvas from 'html2canvas';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Format fixe des captures : 16:9 (diaporama), exporté en résolution ×2.
 const EXPORT_WIDTH = 1600;
@@ -29,6 +30,7 @@ const iconButtonClass = 'p-1.5 rounded-md bg-white/90 hover:bg-white border bord
 // `headerExtra` (optional) renders next to the zoom button, e.g. a per-chart
 // control such as the "statistiques avancées" toggle.
 export default function ZoomableChartCard({ title, zoomedHeight = 500, headerExtra, children }) {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const exportRef = useRef(null);
@@ -114,7 +116,7 @@ export default function ZoomableChartCard({ title, zoomedHeight = 500, headerExt
               <Minimize2 className="w-4 h-4" />
             </button>
           </div>
-          {children(true, zoomedHeight)}
+          {children(true, isMobile ? Math.min(zoomedHeight, Math.round(window.innerHeight * 0.7)) : zoomedHeight)}
         </DialogContent>
       </Dialog>
 

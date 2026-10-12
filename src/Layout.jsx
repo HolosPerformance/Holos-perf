@@ -135,13 +135,13 @@ export default function Layout({ children, currentPageName }) {
   return (
     <div id="layout-bg" className="min-h-screen" style={{ background: 'transparent' }}>
       {/* Header mobile */}
-      <div className="mobile-header fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pb-1 bg-white/90 backdrop-blur-md shadow-sm border-b border-slate-100 md:hidden">
+      <div className="mobile-header fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pb-1 bg-white/90 backdrop-blur-md shadow-sm border-b border-slate-100 lg:hidden">
         <Link to={logoLink}>
           <img
             src="/logo.png"
             onError={(e) => { e.target.style.display = 'none'; }}
             alt="Logo"
-            className="block w-14 h-14 object-contain"
+            className="block w-12 h-12 object-contain"
           />
         </Link>
         <button
@@ -152,14 +152,14 @@ export default function Layout({ children, currentPageName }) {
         </button>
       </div>
 
-      {/* Logo desktop */}
-      <div className="hidden md:block fixed top-3 left-3 z-50">
+      {/* Logo desktop : tient dans la colonne de la barre latérale pour ne pas recouvrir le contenu */}
+      <div className="hidden lg:block fixed top-3 left-1 z-50">
         <Link to={logoLink}>
           <img
             src="/logo.png"
             onError={(e) => { e.target.style.display = 'none'; }}
             alt="Logo"
-            className="block w-32 h-32 object-contain drop-shadow-md hover:scale-105 transition-transform"
+            className="block w-16 h-16 object-contain drop-shadow-md hover:scale-105 transition-transform"
           />
         </Link>
       </div>
@@ -173,7 +173,7 @@ export default function Layout({ children, currentPageName }) {
           onMobileClose={() => setSideNavOpen(false)}
           user={user}
         />
-        <main className="flex-1 min-w-0 relative z-30 main-below-header md:pt-0">
+        <main className="flex-1 min-w-0 relative z-30 main-below-header lg:pt-0 lg:pl-[4.5rem]">
           {children}
         </main>
       </div>
