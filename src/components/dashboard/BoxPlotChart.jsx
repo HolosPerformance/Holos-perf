@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { computeMetricStats } from '@/lib/advancedStats';
-import { HighlightLegend, bandOpacity, highlightText } from './sessionHighlights';
+import { HighlightLegend, BAND_RATIO, bandOpacity, highlightText } from './sessionHighlights';
 import {
   format, parseISO, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval,
   startOfWeek, endOfWeek, startOfMonth, endOfMonth, endOfDay, getISOWeek, differenceInCalendarDays,
@@ -171,7 +171,7 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
                   return (
                     <g key={c.key} onMouseEnter={() => setHovered(s ? i : null)}>
                       {groupBy === 'day' && (highlightsByBucket[c.key] || []).map((h, k, list) => (
-                        <rect key={h.key} x={cx - slot / 2 + k * slot / list.length} y={PAD_TOP} width={slot / list.length} height={usableHeight} fill={h.color} fillOpacity={bandOpacity(h)} />
+                        <rect key={h.key} x={cx - slot * BAND_RATIO / 2 + k * slot * BAND_RATIO / list.length} y={PAD_TOP} width={slot * BAND_RATIO / list.length} height={usableHeight} fill={h.color} fillOpacity={bandOpacity(h)} />
                       ))}
                       {groupBy !== 'day' && (highlightsByBucket[c.key] || []).map((h, k, list) => (
                         <g key={h.key}>

@@ -57,6 +57,9 @@ export function buildHighlightDays(logs, types) {
   return days;
 }
 
+// Largeur d'une bande, en part de la largeur d'un jour
+export const BAND_RATIO = 0.5;
+
 // Bande plus marquée quand au moins la moitié des athlètes du jour sont concernés
 export const bandOpacity = (h) => (h.count * 2 >= h.total ? 0.2 : 0.08);
 
@@ -82,10 +85,10 @@ export function HighlightBands({ xAxisMap, offset, data, highlightKey = '__highl
         if (!hl?.length) return null;
         const pos = scale(point[dataKey]);
         if (pos == null || Number.isNaN(pos)) return null;
-        // Bande : toute la largeur d'un jour, centrée sur le jour
+        // Bande : une partie de la largeur d'un jour, centrée sur le jour
         const center = bandwidth ? pos + bandwidth / 2 : pos;
-        const x0 = Math.max(left, center - step / 2);
-        const x1 = Math.min(right, center + step / 2);
+        const x0 = Math.max(left, center - step * BAND_RATIO / 2);
+        const x1 = Math.min(right, center + step * BAND_RATIO / 2);
         const part = (x1 - x0) / hl.length;
         return hl.map((h, k) => (
           <g key={`${i}-${h.key}`}>
