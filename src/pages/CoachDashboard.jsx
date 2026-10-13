@@ -26,6 +26,7 @@ import {
   BoxSelect, Table2, BarChart3, MessageSquare
 } from 'lucide-react';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
+import { questionnaireDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -271,7 +272,7 @@ export default function CoachDashboard() {
           id: response.id,
           athlete_email: response.athlete_email,
           athlete_name: response.athlete_name,
-          training_date: format(submittedDate, 'yyyy-MM-dd'),
+          training_date: questionnaireDay(submittedDate),
           template_id: response.template_id,
           session_type: sessionType || (hasSelectFirstQuestion ? 'inconnu' : 'questionnaire'),
           duration_minutes: null,

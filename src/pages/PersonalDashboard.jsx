@@ -17,6 +17,7 @@ import {
   Activity, TrendingUp, Calendar, RefreshCw, ArrowLeft, Zap
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { questionnaireDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -244,7 +245,7 @@ export default function PersonalDashboard() {
       originalResponse: response,
       athlete_email: response.athlete_email,
       athlete_name: response.athlete_name,
-      training_date: format(submittedDate, 'yyyy-MM-dd'),
+      training_date: questionnaireDay(submittedDate),
       session_type: sessionType || 'inconnu',
       duration_minutes: null,
       ...transformedResponses

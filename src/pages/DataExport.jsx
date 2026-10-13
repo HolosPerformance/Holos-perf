@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Download, FileDown, Calendar, Users, ArrowLeft, Shield, Search, X } from 'lucide-react';
 import { format, parseISO, getWeek, getDay } from 'date-fns';
+import { responseDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -195,11 +196,11 @@ export default function DataExport() {
     }
     if (startDate) {
       filteredLogs = filteredLogs.filter(log => log.training_date >= startDate);
-      filteredResponses = filteredResponses.filter(resp => format(new Date(resp.submitted_date), 'yyyy-MM-dd') >= startDate);
+      filteredResponses = filteredResponses.filter(resp => responseDay(resp) >= startDate);
     }
     if (endDate) {
       filteredLogs = filteredLogs.filter(log => log.training_date <= endDate);
-      filteredResponses = filteredResponses.filter(resp => format(new Date(resp.submitted_date), 'yyyy-MM-dd') <= endDate);
+      filteredResponses = filteredResponses.filter(resp => responseDay(resp) <= endDate);
     }
 
     return {
@@ -258,7 +259,7 @@ export default function DataExport() {
     });
 
     const responseRows = responses.map(resp => {
-      const date = new Date(resp.submitted_date);
+      const date = parseISO(responseDay(resp));
       return [
         format(date, 'dd/MM/yyyy', { locale: fr }), resp.athlete_name || '', resp.athlete_email || '',
         format(date, 'yyyy'), format(date, 'yyMM'), `${format(date, 'yy')}${getWeek(date, { locale: fr }).toString().padStart(2, '0')}`,
