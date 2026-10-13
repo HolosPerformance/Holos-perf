@@ -19,7 +19,7 @@ import StatCard from '../components/dashboard/StatCard';
 import SummaryStatsTable from '../components/dashboard/SummaryStatsTable';
 import AdvancedStatsToggle from '../components/dashboard/AdvancedStatsToggle';
 import { highlightColors, buildHighlightDays } from '../components/dashboard/sessionHighlights';
-import AthletePeriodsPanel, { effectiveAthletePeriods, isInAthletePeriod } from '../components/dashboard/AthletePeriodsPanel';
+import AthletePeriodsPanel, { effectiveAthletePeriods, isInAthletePeriod, athletePeriodStart } from '../components/dashboard/AthletePeriodsPanel';
 import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetricStats } from '@/lib/advancedStats';
 import {
   Users, Activity, TrendingUp, Calendar, Filter,
@@ -746,7 +746,7 @@ export default function CoachDashboard() {
   // plusieurs : avant le début de la période globale, en médianes par jour.
   const emaHistory = toChartPoints(userFilteredLogs.filter(log => {
     const limit = selectedAthleteEmails.length <= 1
-      ? (activeAthletePeriods[log.athlete_email]?.start ?? startDate)
+      ? athletePeriodStart(activeAthletePeriods, log.athlete_email, startDate)
       : startDate;
     return log.training_date < limit && sessionTypeFilters.includes(log.session_type);
   }), false);
