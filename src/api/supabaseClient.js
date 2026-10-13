@@ -30,6 +30,7 @@ const TABLE_MAP = {
   StravaToken:             'strava_tokens',
   UserPreference:          'user_preferences',
   AppSetting:              'app_settings',
+  Injury:                  'injuries',
 };
 
 function parseOrder(orderStr) {

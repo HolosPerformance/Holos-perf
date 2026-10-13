@@ -4,7 +4,7 @@ import { createPageUrl } from '@/utils';
 import { supabase as base44 } from '@/api/supabaseClient';
 import {
   LayoutDashboard, CalendarDays, Calendar, MessageSquare, Users, User,
-  FileText, Download, Settings, Home, ClipboardList, Shield, X
+  FileText, Download, Settings, Home, ClipboardList, Shield, X, HeartPulse
 } from 'lucide-react';
 
 const adminLinks = [
@@ -13,6 +13,7 @@ const adminLinks = [
   { label: 'Dashboard', icon: LayoutDashboard, to: createPageUrl('CoachDashboard') },
   { label: 'Utilisateurs & Groupes', icon: Users, to: createPageUrl('UserManagement') },
   { label: 'Fiches Athlètes', icon: User, to: createPageUrl('AthleteProfile') },
+  { label: 'Médical', icon: HeartPulse, to: '/Medical' },
   { label: 'Messages', icon: MessageSquare, to: createPageUrl('Messages') },
   { label: 'Export données', icon: Download, to: createPageUrl('DataExport') },
   { label: 'Bibliothèque', icon: ClipboardList, to: createPageUrl('Questionnaires') },
@@ -25,6 +26,7 @@ const coachLinks = [
   { label: 'Calendrier', icon: CalendarDays, to: createPageUrl('CalendarPage') },
   { label: 'Dashboard', icon: LayoutDashboard, to: createPageUrl('CoachDashboard') },
   { label: 'Gestion de groupe', icon: Users, to: createPageUrl('GroupManagement') },
+  { label: 'Médical', icon: HeartPulse, to: '/Medical' },
   { label: 'Messages', icon: MessageSquare, to: createPageUrl('Messages') },
   { label: 'Questionnaires', icon: ClipboardList, to: createPageUrl('CoachQuestionnaires') },
   { label: 'Export données', icon: Download, to: createPageUrl('DataExport') },
