@@ -7,6 +7,7 @@ import { calculateEMA, computeLinearTrend, formatSlope } from '@/lib/advancedSta
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getChartStyle, xAxisInterval } from './chartStyle';
 import { HighlightBands, HighlightLegend, HighlightTooltipLines } from './sessionHighlights';
+import { PeriodCoverageLine } from './AthletePeriodsPanel';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -21,6 +22,7 @@ const CustomTooltip = ({ active, payload, label }) => {
             </p>
           ))}
         </div>
+        <PeriodCoverageLine coverage={payload[0]?.payload?.__periodCoverage} />
         <HighlightTooltipLines highlights={payload[0]?.payload?.__highlights} />
       </div>
     );

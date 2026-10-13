@@ -19,11 +19,12 @@ import StatCard from '../components/dashboard/StatCard';
 import SummaryStatsTable from '../components/dashboard/SummaryStatsTable';
 import AdvancedStatsToggle from '../components/dashboard/AdvancedStatsToggle';
 import { highlightColors, buildHighlightDays } from '../components/dashboard/sessionHighlights';
+import AthletePeriodsPanel, { effectiveAthletePeriods, isInAthletePeriod } from '../components/dashboard/AthletePeriodsPanel';
 import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetricStats } from '@/lib/advancedStats';
 import {
   Users, Activity, TrendingUp, Calendar, Filter,
   RefreshCw, ArrowLeft, Search, Zap, Download,
-  BoxSelect, Table2, BarChart3, MessageSquare
+  BoxSelect, Table2, BarChart3, MessageSquare, SlidersHorizontal
 } from 'lucide-react';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
 import { questionnaireDay } from '@/lib/questionnaireDay';
@@ -143,6 +144,17 @@ export default function CoachDashboard() {
     try { localStorage.setItem('dashboardHighlightedTypes', JSON.stringify(next)); } catch { /* stockage indisponible */ }
     return next;
   });
+
+  // Paramètres avancés : période propre à certains athlètes, comprise dans la
+  // période globale (mémorisée dans le navigateur)
+  const [showAdvancedPeriods, setShowAdvancedPeriods] = useState(false);
+  const [athletePeriods, setAthletePeriodsState] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('dashboardAthletePeriods') || '{}'); } catch { return {}; }
+  });
+  const setAthletePeriods = (next) => {
+    setAthletePeriodsState(next);
+    try { localStorage.setItem('dashboardAthletePeriods', JSON.stringify(next)); } catch { /* stockage indisponible */ }
+  };
 
   useEffect(() => {
     if (user?.metric_colors) {
@@ -638,12 +650,28 @@ export default function CoachDashboard() {
 
   const dateRange = { start: parseISO(startDate), end: parseISO(endDate) };
 
+  // Périodes individuelles appliquées aux athlètes sélectionnés
+  const activeAthletePeriods = useMemo(
+    () => effectiveAthletePeriods(athletePeriods, selectedAthleteEmails, startDate, endDate),
+    [athletePeriods, selectedAthleteEmails, startDate, endDate]
+  );
+  const customPeriodCount = Object.keys(activeAthletePeriods).length;
+  const selectedAthletesForPeriods = selectedAthleteEmails.map(email =>
+    selectableAthletes.find(a => a.email === email) || { email, name: email });
+
   // Filter logs
   const filteredLogs = userFilteredLogs.filter(log => {
     const logDate = parseISO(log.training_date);
     const inDateRange = logDate >= dateRange.start && logDate <= dateRange.end;
     const matchesSessionType = sessionTypeFilters.includes(log.session_type);
-    return inDateRange && matchesSessionType;
+    return inDateRange && matchesSessionType && isInAthletePeriod(activeAthletePeriods, log);
+  });
+
+  // Nombre d'athlètes sélectionnés dont la période couvre un jour donné
+  // (affiché dans l'infobulle des médianes quand des périodes individuelles sont actives)
+  const periodCoverage = (day) => ({
+    count: selectedAthleteEmails.filter(email => isInAthletePeriod(activeAthletePeriods, { athlete_email: email, training_date: day })).length,
+    total: selectedAthleteEmails.length,
   });
 
   // Remap all question ids in a log to their canonical key so grouped questions plot together
@@ -704,6 +732,7 @@ export default function CoachDashboard() {
         athlete_name: day.athlete_name,
         athlete_email: 'group',
         duration_minutes: null,
+        ...(customPeriodCount > 0 ? { __periodCoverage: periodCoverage(day.training_date) } : {}),
         ...medians
       };
     });
@@ -726,8 +755,9 @@ export default function CoachDashboard() {
   );
   const analysisPeriodLogs = useMemo(
     () => analysisAthleteLogs.filter(log =>
-      log.training_date >= startDate && log.training_date <= endDate && sessionTypeFilters.includes(log.session_type)),
-    [analysisAthleteLogs, startDate, endDate, sessionTypeFilters]
+      log.training_date >= startDate && log.training_date <= endDate && sessionTypeFilters.includes(log.session_type)
+      && isInAthletePeriod(activeAthletePeriods, log)),
+    [analysisAthleteLogs, startDate, endDate, sessionTypeFilters, activeAthletePeriods]
   );
   const analysisGlobalFilters = useMemo(
     () => ({ startDate, endDate, sessionTypes: sessionTypeFilters }),
@@ -1094,6 +1124,25 @@ export default function CoachDashboard() {
                   className="h-9 w-40"
                 />
               </div>
+              {(isAdmin || isCoach) && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={showAdvancedPeriods ? 'secondary' : 'outline'}
+                    size="sm"
+                    className="h-9"
+                    onClick={() => setShowAdvancedPeriods(v => !v)}
+                    aria-expanded={showAdvancedPeriods}
+                  >
+                    <SlidersHorizontal className="w-4 h-4 mr-1.5" />
+                    Paramètres avancés
+                  </Button>
+                  {customPeriodCount > 0 && (
+                    <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100">
+                      {customPeriodCount} athlète{customPeriodCount > 1 ? 's' : ''} avec une période personnalisée
+                    </Badge>
+                  )}
+                </div>
+              )}
               {Object.keys(dynamicSessionTypes.labels).length > 0 && (
                 <div className="flex items-center gap-3 flex-wrap">
                   <Label className="text-sm text-slate-600">Type :</Label>
@@ -1110,6 +1159,18 @@ export default function CoachDashboard() {
                 </div>
               )}
             </div>
+            {showAdvancedPeriods && (isAdmin || isCoach) && (
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <h4 className="text-sm font-semibold text-slate-800 mb-2">Période par athlète</h4>
+                <AthletePeriodsPanel
+                  athletes={selectedAthletesForPeriods}
+                  periods={athletePeriods}
+                  onChange={setAthletePeriods}
+                  startDate={startDate}
+                  endDate={endDate}
+                />
+              </div>
+            )}
             {highlightableTypes.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-slate-100">
                 <Label className="text-sm text-slate-600 mr-1">Mettre en évidence :</Label>

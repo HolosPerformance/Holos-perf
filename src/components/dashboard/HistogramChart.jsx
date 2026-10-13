@@ -7,6 +7,7 @@ import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, TREND_STAT_DEF, calculateEMA, compu
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getChartStyle, xAxisInterval } from './chartStyle';
 import { HighlightBands, HighlightLegend, HighlightTooltipLines } from './sessionHighlights';
+import { PeriodCoverageLine } from './AthletePeriodsPanel';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -27,6 +28,7 @@ const CustomTooltip = ({ active, payload, label }) => {
             Tendance: <span className="font-semibold">{trend}</span>
           </p>
         )}
+        <PeriodCoverageLine coverage={payload[0]?.payload?.__periodCoverage} />
         <HighlightTooltipLines highlights={dayHighlights} />
       </div>
     );
@@ -88,6 +90,7 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
     if (existingData) {
       dataPoint.value = existingData[dataKey];
       dataPoint.athlete = existingData.athlete_name;
+      dataPoint.__periodCoverage = existingData.__periodCoverage;
 
       const dataIndex = filteredData.findIndex(d =>
         format(parseISO(d.training_date), 'yyyy-MM-dd') === dateKey
