@@ -687,16 +687,18 @@ export default function CoachDashboard() {
     return remapped;
   };
 
-  const processedLogs = (() => {
+  // Points des graphiques : saisies brutes pour un athlète, médiane par jour
+  // pour plusieurs athlètes
+  const toChartPoints = (logs, withCoverage) => {
     if (selectedAthleteEmails.length <= 1) {
-      return filteredLogs.map(log => ({
+      return logs.map(log => ({
         ...remapLogMetrics(log),
         dateLabel: format(parseISO(log.training_date), 'dd/MM', { locale: fr })
       }));
     }
 
     const grouped = {};
-    filteredLogs.forEach(rawLog => {
+    logs.forEach(rawLog => {
       const log = remapLogMetrics(rawLog);
       const dateKey = log.training_date;
       if (!grouped[dateKey]) {
@@ -732,11 +734,22 @@ export default function CoachDashboard() {
         athlete_name: day.athlete_name,
         athlete_email: 'group',
         duration_minutes: null,
-        ...(customPeriodCount > 0 ? { __periodCoverage: periodCoverage(day.training_date) } : {}),
+        ...(withCoverage && customPeriodCount > 0 ? { __periodCoverage: periodCoverage(day.training_date) } : {}),
         ...medians
       };
     });
-  })();
+  };
+  const processedLogs = toChartPoints(filteredLogs, true);
+
+  // Saisies antérieures à la période, pour amorcer les MME (mêmes athlètes et
+  // types de séance). Un seul athlète : avant le début de sa propre période ;
+  // plusieurs : avant le début de la période globale, en médianes par jour.
+  const emaHistory = toChartPoints(userFilteredLogs.filter(log => {
+    const limit = selectedAthleteEmails.length <= 1
+      ? (activeAthletePeriods[log.athlete_email]?.start ?? startDate)
+      : startDate;
+    return log.training_date < limit && sessionTypeFilters.includes(log.session_type);
+  }), false);
 
   const logsWithLabels = processedLogs;
 
@@ -1255,6 +1268,7 @@ export default function CoachDashboard() {
                   height={isZoomed ? zoomHeight : undefined}
                   statLines={evolutionStatLines}
                   emaDefs={evolutionEmaDefs}
+                  emaHistory={emaHistory}
                   showTrend={!!evolutionStats.trend}
                   highlights={chartHighlights}
                   isZoomed={isZoomed}
@@ -1317,6 +1331,7 @@ export default function CoachDashboard() {
                     endDate={endDate}
                     height={isZoomed ? zoomHeight : undefined}
                     advancedStats={getChartStats(key)}
+                    emaHistory={emaHistory}
                     highlights={chartHighlights}
                     isZoomed={isZoomed}
                     exporting={exporting}

@@ -62,17 +62,40 @@ export function formatSlope(slope) {
   return `${sign}${String(rounded).replace('.', ',')}/j`;
 }
 
+// Nombre de saisies antérieures à la période utilisées pour amorcer une MME,
+// en multiple de sa durée : au-delà, leur poids devient négligeable.
+export const EMA_WARMUP_FACTOR = 3;
+
 // Moyenne mobile exponentielle ; les valeurs nulles restent nulles et ne
 // modifient pas la moyenne en cours.
-export function calculateEMA(values, period) {
+// `history` : valeurs antérieures à la période (ordre chronologique). La MME
+// est amorcée sur les EMA_WARMUP_FACTOR × period dernières : moyenne des
+// `period` premières, puis lissage sur les suivantes. Sans historique, elle
+// démarre sur la première valeur de la période.
+export function calculateEMA(values, period, history = []) {
   const multiplier = 2 / (period + 1);
   let ema = null;
+
+  const warmup = history.filter(v => v != null).slice(-EMA_WARMUP_FACTOR * period);
+  if (warmup.length > 0) {
+    const seed = warmup.slice(0, period);
+    ema = seed.reduce((sum, v) => sum + v, 0) / seed.length;
+    warmup.slice(period).forEach(v => { ema = (v * multiplier) + (ema * (1 - multiplier)); });
+  }
 
   return values.map((value) => {
     if (value == null) return null;
     ema = ema === null ? value : (value * multiplier) + (ema * (1 - multiplier));
     return Math.round(ema * 10) / 10;
   });
+}
+
+// Valeurs d'un indicateur dans des saisies antérieures, triées par date
+export function historyValues(logs, metric) {
+  return (logs || [])
+    .filter(d => d[metric] != null)
+    .sort((a, b) => (a.training_date < b.training_date ? -1 : a.training_date > b.training_date ? 1 : 0))
+    .map(d => d[metric]);
 }
 
 export function computeMetricStats(values) {

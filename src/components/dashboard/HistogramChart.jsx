@@ -3,7 +3,7 @@ import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Respons
 import { format, parseISO, eachDayOfInterval, getDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, TREND_STAT_DEF, calculateEMA, computeMetricStats, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
+import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, TREND_STAT_DEF, calculateEMA, historyValues, computeMetricStats, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getChartStyle, xAxisInterval } from './chartStyle';
 import { HighlightBands, HighlightLegend, HighlightTooltipLines } from './sessionHighlights';
@@ -39,7 +39,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 // `exporting` : rendu pour la capture d'image (style ordinateur, marges
 // réduites, sans animation).
 // `highlights` : types de séance mis en évidence ({ types, days }, voir sessionHighlights).
-export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, advancedStats, highlights, isZoomed = false, exporting = false }) {
+export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, advancedStats, emaHistory = [], highlights, isZoomed = false, exporting = false }) {
   const isMobile = useIsMobile() && !exporting;
   const style = getChartStyle(isMobile);
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -56,8 +56,10 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
 
   const filteredData = sortedData.filter(d => d[dataKey] != null);
   const values = filteredData.map(d => d[dataKey]);
-  const ema7 = calculateEMA(values, 7);
-  const ema21 = calculateEMA(values, 21);
+  // MME amorcées sur les saisies antérieures à la période (emaHistory)
+  const history = historyValues(emaHistory, dataKey);
+  const ema7 = calculateEMA(values, 7, history);
+  const ema21 = calculateEMA(values, 21, history);
   const metricStats = computeMetricStats(values);
   const trend = advancedStats?.trend
     ? computeLinearTrend(

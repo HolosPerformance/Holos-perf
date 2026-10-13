@@ -266,6 +266,11 @@ export default function PersonalDashboard() {
     return inDateRange && matchesSessionType;
   });
 
+  // Saisies antérieures à la période, pour amorcer les MME
+  const emaHistory = allMyLogs.filter(log =>
+    log.training_date < startDate &&
+    (sessionTypeFilters.length === 0 || sessionTypeFilters.includes(log.session_type)));
+
   // Add date labels
   const logsWithLabels = filteredLogs.map(log => ({
     ...log,
@@ -465,6 +470,7 @@ export default function PersonalDashboard() {
                     startDate={startDate}
                     endDate={endDate}
                     advancedStats={{ ema7: true, ema21: true }}
+                    emaHistory={emaHistory}
                   />
                 ))}
               </div>

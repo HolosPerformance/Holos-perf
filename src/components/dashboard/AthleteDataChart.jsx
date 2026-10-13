@@ -3,7 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { format, parseISO, eachDayOfInterval, getDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { calculateEMA, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
+import { calculateEMA, historyValues, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getChartStyle, xAxisInterval } from './chartStyle';
 import { HighlightBands, HighlightLegend, HighlightTooltipLines } from './sessionHighlights';
@@ -34,7 +34,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 // `highlights` : types de séance mis en évidence ({ types, days }, voir sessionHighlights).
 // `exporting` : rendu pour la capture d'image (style ordinateur, marges
 // réduites, légende entière, sans animation).
-export default function AthleteDataChart({ data, selectedMetrics, title, metricConfig, startDate, endDate, height = 350, statLines = [], emaDefs = [], showTrend = false, highlights, isZoomed = false, exporting = false }) {
+export default function AthleteDataChart({ data, selectedMetrics, title, metricConfig, startDate, endDate, height = 350, statLines = [], emaDefs = [], emaHistory = [], showTrend = false, highlights, isZoomed = false, exporting = false }) {
   const isMobile = useIsMobile() && !exporting;
   const style = getChartStyle(isMobile);
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -50,12 +50,13 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
   });
 
   // Moyennes mobiles exponentielles : une série par indicateur sélectionné et
-  // par MME active, calculée sur les saisies existantes (dans l'ordre des dates).
+  // par MME active, calculée sur les saisies existantes (dans l'ordre des dates),
+  // amorcée sur les saisies antérieures à la période (emaHistory).
   const emaByDate = new Map();
   selectedMetrics.forEach(metric => {
     const points = sortedData.filter(d => d[metric] != null);
     emaDefs.forEach(def => {
-      const emaValues = calculateEMA(points.map(d => d[metric]), def.period);
+      const emaValues = calculateEMA(points.map(d => d[metric]), def.period, historyValues(emaHistory, metric));
       points.forEach((d, i) => {
         const date = format(parseISO(d.training_date), 'yyyy-MM-dd');
         const entry = emaByDate.get(date) || {};
