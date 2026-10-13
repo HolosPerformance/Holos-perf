@@ -16,7 +16,8 @@ import {
   User,
   PenLine,
   BarChart2,
-  Download
+  Download,
+  HeartPulse
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import CoachCalendar from '../components/calendar/CoachCalendar';
@@ -116,6 +117,13 @@ export default function CoachHomeIndividual() {
       icon: CalendarDays,
       href: createPageUrl('CalendarPage'),
       color: 'from-teal-500 to-teal-600'
+    },
+    {
+      title: 'Médical',
+      description: 'Suivi des blessures et disponibilités',
+      icon: HeartPulse,
+      href: '/Medical',
+      color: 'from-rose-500 to-red-600'
     }
   ].filter(Boolean);
 

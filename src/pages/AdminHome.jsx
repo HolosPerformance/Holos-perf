@@ -16,7 +16,8 @@ import {
   Calendar,
   CalendarDays,
   ClipboardList,
-  Shield
+  Shield,
+  HeartPulse
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EventCalendar from '../components/calendar/EventCalendar';
@@ -173,6 +174,14 @@ export default function AdminHome() {
       href: createPageUrl('CalendarPage'),
       color: 'from-sky-500 to-blue-400',
       hex: '#0ea5e9'
+    },
+    {
+      title: 'Médical',
+      description: 'Suivi des blessures et disponibilités',
+      icon: HeartPulse,
+      href: '/Medical',
+      color: 'from-rose-500 to-red-600',
+      hex: '#e11d48'
     }
   ];
 

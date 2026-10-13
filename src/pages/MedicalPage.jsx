@@ -27,28 +27,47 @@ export default function MedicalPage() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [scopeFilter, setScopeFilter] = useState('all');
+  const [scopeFilter, setScopeFilter] = useState('all'); // 'all' | club:<id> | group:<id>
+  const [teamFilter, setTeamFilter] = useState('all');   // 'all' | <team id>
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [formState, setFormState] = useState(null); // { injury?: object }
 
-  // ─── Périmètre : clubs, équipes et groupes encadrés ──────────────────────────
-  const { data: scopes = [] } = useQuery({
+  // ─── Périmètre : clubs, équipes et groupes (tous pour l'admin, encadrés pour un coach) ──
+  const { data: scopes = { clubs: [], teams: [], groups: [] } } = useQuery({
     queryKey: ['medical-scopes', user?.email, isAdmin],
     queryFn: async () => {
       const [clubs, teams, groups] = await Promise.all([
         base44.entities.Club.list('name'),
-        isAdmin ? Promise.resolve([]) : base44.entities.Team.list('name'),
-        isAdmin ? Promise.resolve([]) : base44.entities.Group.filter({ coach_email: user.email }, 'name'),
+        base44.entities.Team.list('name'),
+        isAdmin ? base44.entities.Group.list('name') : base44.entities.Group.filter({ coach_email: user.email }, 'name'),
       ]);
       const mine = (c) => isAdmin || (c.coach_emails || []).includes(user.email);
-      return [
-        ...clubs.filter(mine).map(c => ({ key: `club:${c.id}`, label: `Club · ${c.name}`, emails: c.athlete_emails || [] })),
-        ...teams.filter(mine).map(t => ({ key: `team:${t.id}`, label: `Équipe · ${t.name}`, emails: t.athlete_emails || [] })),
-        ...groups.map(g => ({ key: `group:${g.id}`, label: `Groupe · ${g.name}`, emails: g.athlete_emails || [] })),
-      ];
+      return {
+        clubs: clubs.filter(mine).map(c => ({ key: `club:${c.id}`, id: c.id, label: `Club · ${c.name}`, emails: c.athlete_emails || [] })),
+        teams: teams.filter(mine).map(t => ({ id: t.id, club_id: t.club_id, label: t.name, emails: t.athlete_emails || [] })),
+        groups: groups.map(g => ({ key: `group:${g.id}`, id: g.id, label: `Groupe · ${g.name}`, emails: g.athlete_emails || [] })),
+      };
     },
     enabled: isStaff && !!user?.email,
   });
+
+  // Menu club / groupe : toujours pour l'admin, pour un coach seulement s'il a
+  // plusieurs clubs ou plusieurs groupes
+  const scopeOptions = [...scopes.clubs, ...scopes.groups];
+  const showScopeSelect = isAdmin
+    ? scopeOptions.length > 0
+    : scopes.clubs.length > 1 || scopes.groups.length > 1;
+  const selectedScope = scopeOptions.find(s => s.key === scopeFilter) || null;
+
+  // Menu équipe : équipes du club choisi ; sans club choisi, toutes les équipes
+  // du coach (l'admin doit d'abord choisir un club)
+  const teamOptions = selectedScope?.key.startsWith('club:')
+    ? scopes.teams.filter(t => t.club_id === selectedScope.id)
+    : !selectedScope && !isAdmin ? scopes.teams : [];
+  const showTeamSelect = teamOptions.length > 1;
+  const selectedTeam = teamOptions.find(t => t.id === teamFilter) || null;
+
+  const changeScope = (value) => { setScopeFilter(value); setTeamFilter('all'); };
 
   const { data: users = [] } = useQuery({
     queryKey: ['medical-users'],
@@ -74,7 +93,7 @@ export default function MedicalPage() {
     const profilesByEmail = new Map(athleteProfiles.map(p => [p.athlete_email, p]));
     const emails = isAdmin
       ? users.filter(u => u.user_status === 'athlete').map(u => u.email)
-      : [...new Set(scopes.flatMap(s => s.emails))];
+      : [...new Set([...scopes.clubs, ...scopes.teams, ...scopes.groups].flatMap(s => s.emails))];
 
     return emails.map(email => {
       const u = usersByEmail.get(email) || {};
@@ -90,22 +109,20 @@ export default function MedicalPage() {
     }).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   }, [users, athleteProfiles, injuries, scopes, isAdmin]);
 
-  const counts = useMemo(() => {
-    const c = Object.fromEntries(STATUS_FILTERS.map(s => [s.value, 0]));
-    for (const a of athletes) c[a.current?.status || AVAILABLE_STATUS.value]++;
-    return c;
-  }, [athletes]);
+  // Athlètes du club / groupe / équipe sélectionnés : base des compteurs et de la liste
+  const scoped = athletes.filter(a =>
+    (!selectedScope || selectedScope.emails.includes(a.email))
+    && (!selectedTeam || selectedTeam.emails.includes(a.email)));
 
-  const filtered = useMemo(() => {
-    const scope = scopes.find(s => s.key === scopeFilter);
-    const q = search.trim().toLowerCase();
-    return athletes.filter(a => {
-      if (scope && !scope.emails.includes(a.email)) return false;
-      if (statusFilter !== 'all' && (a.current?.status || AVAILABLE_STATUS.value) !== statusFilter) return false;
-      if (q && !a.name.toLowerCase().includes(q) && !a.email.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [athletes, scopes, scopeFilter, statusFilter, search]);
+  const counts = Object.fromEntries(STATUS_FILTERS.map(s => [s.value, 0]));
+  for (const a of scoped) counts[a.current?.status || AVAILABLE_STATUS.value]++;
+
+  const q = search.trim().toLowerCase();
+  const filtered = scoped.filter(a => {
+    if (statusFilter !== 'all' && (a.current?.status || AVAILABLE_STATUS.value) !== statusFilter) return false;
+    if (q && !a.name.toLowerCase().includes(q) && !a.email.toLowerCase().includes(q)) return false;
+    return true;
+  });
 
   const selected = athletes.find(a => a.email === selectedEmail) || null;
 
@@ -208,12 +225,21 @@ export default function MedicalPage() {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <Input className="pl-9" placeholder="Rechercher un athlète…" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          {scopes.length > 1 && (
-            <Select value={scopeFilter} onValueChange={setScopeFilter}>
+          {showScopeSelect && (
+            <Select value={scopeFilter} onValueChange={changeScope}>
               <SelectTrigger className="sm:w-64"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{isAdmin ? 'Tous les athlètes' : 'Tous mes athlètes'}</SelectItem>
-                {scopes.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+                {scopeOptions.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {showTeamSelect && (
+            <Select value={teamFilter} onValueChange={setTeamFilter}>
+              <SelectTrigger className="sm:w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{isAdmin ? 'Toutes les équipes' : 'Toutes mes équipes'}</SelectItem>
+                {teamOptions.map(t => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
