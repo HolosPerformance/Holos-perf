@@ -43,16 +43,16 @@ function Body({ art, zones, onToggle }) {
       <defs>
         <filter id={`blur-${uid}`} x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9" /></filter>
       </defs>
-      <path d={art.outline} fill={SKIN} stroke={INK} strokeWidth="4" strokeLinejoin="round" />
-      {art.zones.map(z => (
-        <path key={z.id} d={z.d} fill={SKIN} stroke={INK} strokeOpacity="0.35" strokeWidth="2.5" pointerEvents="none" />
-      ))}
-      {art.hair && <path d={art.hair} fill={INK} fillOpacity="0.6" pointerEvents="none" />}
+      {/* Muscles (tracés d'origine), regroupés par zone */}
+      {art.zones.filter(z => !z.hairOnly).flatMap(z => z.d.map((d, i) => (
+        <path key={`${z.id}-${i}`} d={d} fill={SKIN} stroke={INK} strokeWidth="3" strokeLinejoin="round" pointerEvents="none" />
+      )))}
+      {art.hair.map((d, i) => <path key={`hair-${i}`} d={d} fill={INK} fillOpacity="0.55" stroke={INK} strokeWidth="3" pointerEvents="none" />)}
       {/* Taches de couleur des zones douloureuses */}
       <g filter={`url(#blur-${uid})`} pointerEvents="none">
-        {art.zones.filter(z => zones[z.id]).map(z => (
-          <path key={z.id} d={z.d} fill={intensityColor(zones[z.id])} opacity="0.85" />
-        ))}
+        {art.zones.filter(z => zones[z.id]).flatMap(z => z.d.map((d, i) => (
+          <path key={`${z.id}-${i}`} d={d} fill={intensityColor(zones[z.id])} opacity="0.85" />
+        )))}
         {art.joints.filter(j => zones[j.id]).map(j => (
           <circle key={j.id} cx={j.cx} cy={j.cy} r={j.r} fill={intensityColor(zones[j.id])} opacity="0.9" />
         ))}
@@ -61,10 +61,11 @@ function Body({ art, zones, onToggle }) {
       {art.zones.map(z => {
         const label = painZoneInfo(z.id)?.fullLabel;
         return (
-          <path key={z.id} d={z.d} className={hit} role="button" aria-pressed={!!zones[z.id]} aria-label={label}
+          <g key={z.id} className={hit} role="button" aria-pressed={!!zones[z.id]} aria-label={label}
             onClick={() => onToggle(z.id)}>
             <title>{label}</title>
-          </path>
+            {z.d.map((d, i) => <path key={i} d={d} />)}
+          </g>
         );
       })}
       {art.joints.map(j => {
