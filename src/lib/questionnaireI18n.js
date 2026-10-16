@@ -114,6 +114,8 @@ const UI_STRINGS = {
     painShowFront: 'Voir de face',
     painLeftFull: 'Gauche',
     painRightFull: 'Droite',
+    painMale: 'Homme',
+    painFemale: 'Femme',
   },
   en: {
     answerPlaceholder: 'Your answer...',
@@ -141,6 +143,8 @@ const UI_STRINGS = {
     painShowFront: 'Show front',
     painLeftFull: 'Left',
     painRightFull: 'Right',
+    painMale: 'Male',
+    painFemale: 'Female',
   },
   es: {
     answerPlaceholder: 'Tu respuesta...',
@@ -168,6 +172,8 @@ const UI_STRINGS = {
     painShowFront: 'Ver frente',
     painLeftFull: 'Izquierda',
     painRightFull: 'Derecha',
+    painMale: 'Hombre',
+    painFemale: 'Mujer',
   },
   it: {
     answerPlaceholder: 'La tua risposta...',
@@ -195,6 +201,8 @@ const UI_STRINGS = {
     painShowFront: 'Vedi fronte',
     painLeftFull: 'Sinistra',
     painRightFull: 'Destra',
+    painMale: 'Uomo',
+    painFemale: 'Donna',
   },
   de: {
     answerPlaceholder: 'Deine Antwort...',
@@ -222,6 +230,8 @@ const UI_STRINGS = {
     painShowFront: 'Vorderseite zeigen',
     painLeftFull: 'Links',
     painRightFull: 'Rechts',
+    painMale: 'Mann',
+    painFemale: 'Frau',
   },
   pt: {
     answerPlaceholder: 'A tua resposta...',
@@ -249,6 +259,8 @@ const UI_STRINGS = {
     painShowFront: 'Ver frente',
     painLeftFull: 'Esquerda',
     painRightFull: 'Direita',
+    painMale: 'Homem',
+    painFemale: 'Mulher',
   },
   nl: {
     answerPlaceholder: 'Jouw antwoord...',
@@ -276,6 +288,8 @@ const UI_STRINGS = {
     painShowFront: 'Voorkant tonen',
     painLeftFull: 'Links',
     painRightFull: 'Rechts',
+    painMale: 'Man',
+    painFemale: 'Vrouw',
   },
 };
 

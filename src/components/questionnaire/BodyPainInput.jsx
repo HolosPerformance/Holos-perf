@@ -1,93 +1,19 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { RotateCcw, X } from 'lucide-react';
-import {
-  PAIN_ZONES, PAIN_INTENSITY_DEFAULT, PAIN_INTENSITY_MAX, painZoneInfo,
-} from '@/lib/painZones';
+import { PAIN_INTENSITY_DEFAULT, PAIN_INTENSITY_MAX, painZoneInfo } from '@/lib/painZones';
+import { BODY_ART } from './bodyArt';
 
 const SIDE_KEY = { gauche: 'painLeft', droit: 'painRight' };
 const FLIP_MS = 160;
-
-// ─── Silhouette (repère 240 × 480, commun aux deux vues) ─────────────────────
-// Moitié gauche du contour (à l'écran), du cou à l'entrejambe ; l'autre moitié
-// est son symétrique. Bras légèrement écartés pour bien séparer les zones.
-const VIEW_W = 240;
-const HALF_OUTLINE = [
-  [111, 66], [110, 84], [96, 92], [80, 98], [68, 107], [62, 122], [58, 142], [53, 168],
-  [47, 200], [41, 229], [33, 243], [28, 258], [30, 274], [36, 284], [44, 282], [48, 270],
-  [51, 258], [55, 244], [55, 234], [61, 206], [67, 176], [73, 145], [79, 128], [82, 150],
-  [86, 190], [82, 222], [78, 258], [81, 300], [80, 340], [88, 392], [91, 418], [83, 440],
-  [83, 453], [94, 459], [109, 457], [111, 444], [106, 414], [108, 352], [110, 312],
-  [113, 262], [120, 242],
-];
-
-// Contour lissé (Catmull-Rom → courbes de Bézier)
-function smoothPath(points) {
-  const n = points.length;
-  let d = `M${points[0][0]},${points[0][1]}`;
-  for (let i = 0; i < n; i++) {
-    const p0 = points[(i - 1 + n) % n], p1 = points[i], p2 = points[(i + 1) % n], p3 = points[(i + 2) % n];
-    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
-    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
-    d += ` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0]},${p2[1]}`;
-  }
-  return `${d} Z`;
-}
-const BODY_PATH = smoothPath([...HALF_OUTLINE, ...[...HALF_OUTLINE].reverse().slice(1).map(([x, y]) => [VIEW_W - x, y])]);
-
 const SKIN = '#fbeee4';
 const INK = '#6b4433';
-const LINE = { fill: 'none', stroke: INK, strokeWidth: 1.2, strokeLinecap: 'round', opacity: 0.55, pointerEvents: 'none' };
+const SEX_STORAGE_KEY = 'painBodySex';
 
-// Trait dessiné à gauche du schéma et son symétrique
-const sym = (d) => d + ' ' + d.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (_, x, y) => `${VIEW_W - Number(x)},${y}`);
-
-function Head({ back }) {
-  return (
-    <g pointerEvents="none">
-      <ellipse cx="97" cy="50" rx="4" ry="7" fill={SKIN} stroke={INK} strokeWidth="1.4" />
-      <ellipse cx="143" cy="50" rx="4" ry="7" fill={SKIN} stroke={INK} strokeWidth="1.4" />
-      <ellipse cx="120" cy="46" rx="22" ry="27" fill={SKIN} stroke={INK} strokeWidth="1.6" />
-      {back && <path d="M98,44 Q97,18 120,19 Q143,18 142,44 Q141,57 136,60 Q120,55 104,60 Q99,57 98,44 Z" fill={INK} opacity="0.55" />}
-    </g>
-  );
-}
-
-// Repères de face : clavicules, pectoraux, nombril, plis de l'aine, rotules, doigts, orteils
-function FrontLines() {
-  return (
-    <g>
-      <path d={sym('M97,99 Q108,104 117,101')} {...LINE} />
-      <path d="M116,100 L120,105 L124,100" {...LINE} />
-      <path d={sym('M88,150 Q103,160 117,152')} {...LINE} />
-      <path d="M120,158 L120,180" {...LINE} opacity={0.3} />
-      <ellipse cx="120" cy="197" rx="2" ry="3" {...LINE} />
-      <path d={sym('M96,214 Q106,228 114,238')} {...LINE} />
-      <path d={sym('M89,318 Q96,323 103,318')} {...LINE} />
-      <path d={sym('M33,268 L35,280 M39,270 L40,282 M44,268 L45,279')} {...LINE} />
-      <path d={sym('M88,452 L88,457 M94,453 L94,458 M100,453 L100,457')} {...LINE} />
-    </g>
-  );
-}
-
-// Repères de dos : colonne, omoplates, pli des fessiers, creux des genoux, mollets, talons
-function BackLines() {
-  return (
-    <g>
-      <path d="M120,92 L120,212" {...LINE} strokeDasharray="2 4" />
-      <path d={sym('M94,112 Q97,140 110,138 Q112,124 104,108')} {...LINE} />
-      <path d="M120,214 L120,240" {...LINE} />
-      <path d={sym('M86,246 Q101,254 118,247')} {...LINE} />
-      <path d={sym('M88,314 Q96,310 104,314')} {...LINE} />
-      <path d={sym('M86,335 Q92,352 96,372')} {...LINE} opacity={0.35} />
-      <path d={sym('M90,448 Q96,456 104,450')} {...LINE} />
-    </g>
-  );
-}
-
-function Shape({ shape, ...props }) {
-  const transform = shape.rot ? `rotate(${shape.rot} ${shape.cx} ${shape.cy})` : undefined;
-  return <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} transform={transform} {...props} />;
-}
+// Identifiants des zones dessinées dans chaque vue (silhouette homme et femme confondues)
+const VIEW_ZONE_IDS = Object.fromEntries(['front', 'back'].map(view => [view, new Set(
+  Object.values(BODY_ART).flatMap(art => [...art[view].zones.map(z => z.id), ...art[view].joints.map(j => j.id)])
+)]));
+const viewsOf = (id) => ['front', 'back'].filter(v => VIEW_ZONE_IDS[v].has(id));
 
 // Couleur d'une intensité : vert (légère) → orange → rouge (très forte)
 const HUE_STOPS = [[1, 120], [3, 90], [5, 38], [7, 18], [10, 0]];
@@ -105,15 +31,67 @@ const VIEW_STYLE = {
   back: 'bg-violet-600',
 };
 
+const readStoredSex = () => {
+  try { return localStorage.getItem(SEX_STORAGE_KEY) === 'femme' ? 'femme' : 'homme'; } catch { return 'homme'; }
+};
+
+function Body({ art, zones, onToggle }) {
+  const uid = useId().replace(/:/g, '');
+  const hit = 'cursor-pointer fill-transparent hover:fill-amber-400/25 transition-colors';
+  return (
+    <svg viewBox={art.viewBox} className="w-52 h-[26rem] select-none">
+      <defs>
+        <filter id={`blur-${uid}`} x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9" /></filter>
+      </defs>
+      <path d={art.outline} fill={SKIN} stroke={INK} strokeWidth="4" strokeLinejoin="round" />
+      {art.zones.map(z => (
+        <path key={z.id} d={z.d} fill={SKIN} stroke={INK} strokeOpacity="0.35" strokeWidth="2.5" pointerEvents="none" />
+      ))}
+      {art.hair && <path d={art.hair} fill={INK} fillOpacity="0.6" pointerEvents="none" />}
+      {/* Taches de couleur des zones douloureuses */}
+      <g filter={`url(#blur-${uid})`} pointerEvents="none">
+        {art.zones.filter(z => zones[z.id]).map(z => (
+          <path key={z.id} d={z.d} fill={intensityColor(zones[z.id])} opacity="0.85" />
+        ))}
+        {art.joints.filter(j => zones[j.id]).map(j => (
+          <circle key={j.id} cx={j.cx} cy={j.cy} r={j.r} fill={intensityColor(zones[j.id])} opacity="0.9" />
+        ))}
+      </g>
+      {/* Zones cliquables (coudes, poignets… par-dessus les membres) */}
+      {art.zones.map(z => {
+        const label = painZoneInfo(z.id)?.fullLabel;
+        return (
+          <path key={z.id} d={z.d} className={hit} role="button" aria-pressed={!!zones[z.id]} aria-label={label}
+            onClick={() => onToggle(z.id)}>
+            <title>{label}</title>
+          </path>
+        );
+      })}
+      {art.joints.map(j => {
+        const label = painZoneInfo(j.id)?.fullLabel;
+        return (
+          <circle key={j.id} cx={j.cx} cy={j.cy} r={j.r} className={hit} role="button" aria-pressed={!!zones[j.id]} aria-label={label}
+            onClick={() => onToggle(j.id)}>
+            <title>{label}</title>
+          </circle>
+        );
+      })}
+    </svg>
+  );
+}
+
 /**
- * Question « Zones douloureuses » : une silhouette à retourner (devant /
- * derrière), puis une intensité de 1 à 10 par zone touchée.
- * Valeur : { [zoneId]: intensité }.
+ * Question « Zones douloureuses » : silhouette homme ou femme (selon le profil
+ * de l'athlète, sinon au choix) à retourner devant / derrière, puis une
+ * intensité de 1 à 10 par zone touchée. Valeur : { [zoneId]: intensité }.
  */
-export default function BodyPainInput({ value, onChange, t, initialView = 'front' }) {
+export default function BodyPainInput({ value, onChange, t, sex, initialView = 'front' }) {
   const zones = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const [view, setView] = useState(initialView);
   const [turning, setTurning] = useState(false);
+  const [chosenSex, setChosenSex] = useState(readStoredSex);
+  const bodySex = sex === 'femme' || sex === 'homme' ? sex : chosenSex;
+  const art = BODY_ART[bodySex === 'femme' ? 'female' : 'male'][view];
 
   const toggle = (id) => {
     const next = { ...zones };
@@ -126,10 +104,15 @@ export default function BodyPainInput({ value, onChange, t, initialView = 'front
     setTurning(true);
     setTimeout(() => { setView(v => (v === 'front' ? 'back' : 'front')); setTurning(false); }, FLIP_MS);
   };
+  const chooseSex = (s) => {
+    setChosenSex(s);
+    try { localStorage.setItem(SEX_STORAGE_KEY, s); } catch { /* stockage indisponible */ }
+  };
 
   const selected = Object.keys(zones).filter(id => zones[id] && painZoneInfo(id));
   const otherView = view === 'front' ? 'back' : 'front';
-  const otherCount = selected.filter(id => PAIN_ZONES.find(z => z.id === id)?.view === otherView).length;
+  // Zones cochées visibles seulement de l'autre côté
+  const otherCount = selected.filter(id => !VIEW_ZONE_IDS[view].has(id) && VIEW_ZONE_IDS[otherView].has(id)).length;
   // De face, la gauche de l'athlète est à droite du schéma ; de dos, à gauche
   const [leftLabel, rightLabel] = view === 'front' ? [t.painRightFull, t.painLeftFull] : [t.painLeftFull, t.painRightFull];
 
@@ -138,38 +121,23 @@ export default function BodyPainInput({ value, onChange, t, initialView = 'front
       <p className="text-sm text-slate-600">{t.painHint}</p>
 
       <div className="rounded-xl p-3 flex flex-col items-center gap-2" style={{ background: '#fdf8f3' }}>
+        {!sex && (
+          <div className="flex rounded-full bg-white border border-slate-200 p-0.5 text-xs self-end">
+            {[['homme', t.painMale], ['femme', t.painFemale]].map(([s, label]) => (
+              <button key={s} type="button" onClick={() => chooseSex(s)}
+                className={`px-3 py-1 rounded-full transition ${bodySex === s ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className={`px-4 py-1 rounded-full text-white text-sm font-bold tracking-wide uppercase transition-colors ${VIEW_STYLE[view]}`}>
           {view === 'front' ? t.painFront : t.painBack}
         </div>
 
         <div style={{ transform: turning ? 'scaleX(0)' : 'scaleX(1)', transition: `transform ${FLIP_MS}ms ease-in-out` }}>
-          <svg viewBox="0 0 240 480" className="w-52 h-[26rem] select-none">
-            <defs>
-              <clipPath id="pain-body-clip"><path d={BODY_PATH} /><ellipse cx="120" cy="46" rx="22" ry="27" /></clipPath>
-              <filter id="pain-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.5" /></filter>
-            </defs>
-            <path d={BODY_PATH} fill={SKIN} stroke={INK} strokeWidth="1.6" strokeLinejoin="round" />
-            <Head back={view === 'back'} />
-            {/* Taches de couleur des zones douloureuses, contenues dans la silhouette */}
-            <g clipPath="url(#pain-body-clip)" filter="url(#pain-blur)" pointerEvents="none">
-              {PAIN_ZONES.filter(z => z.view === view && zones[z.id]).map(zone => (
-                <Shape key={zone.id} shape={{ ...zone.shape, rx: zone.shape.rx * 1.15, ry: zone.shape.ry * 1.1 }} fill={intensityColor(zones[zone.id])} opacity={0.9} />
-              ))}
-            </g>
-            {view === 'front' ? <FrontLines /> : <BackLines />}
-            {/* Zones cliquables (invisibles, légèrement teintées au survol) */}
-            {PAIN_ZONES.filter(z => z.view === view).map(zone => {
-              const label = painZoneInfo(zone.id).fullLabel;
-              return (
-                <Shape key={zone.id} shape={zone.shape}
-                  role="button" aria-pressed={!!zones[zone.id]} aria-label={label}
-                  onClick={() => toggle(zone.id)}
-                  className="cursor-pointer fill-transparent hover:fill-amber-400/25 transition-colors">
-                  <title>{label}</title>
-                </Shape>
-              );
-            })}
-          </svg>
+          <Body art={art} zones={zones} onToggle={toggle} />
         </div>
 
         <div className="w-52 flex justify-between text-xs font-semibold" style={{ color: INK }}>
@@ -196,15 +164,16 @@ export default function BodyPainInput({ value, onChange, t, initialView = 'front
           {selected.map(id => {
             const v = typeof zones[id] === 'number' ? zones[id] : PAIN_INTENSITY_DEFAULT;
             const info = painZoneInfo(id);
-            const zoneView = PAIN_ZONES.find(z => z.id === id)?.view;
+            const views = viewsOf(id);
+            const onlyView = views.length === 1 ? views[0] : null;
             return (
               <div key={id} className="rounded-lg border border-red-100 bg-red-50/60 p-2.5">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="text-sm font-medium text-red-800">
                     {info.label}{SIDE_KEY[info.side] ? ` (${t[SIDE_KEY[info.side]]})` : ''}
-                    {zoneView && (
-                      <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase text-white ${VIEW_STYLE[zoneView]}`}>
-                        {zoneView === 'front' ? t.painFront : t.painBack}
+                    {onlyView && (
+                      <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase text-white ${VIEW_STYLE[onlyView]}`}>
+                        {onlyView === 'front' ? t.painFront : t.painBack}
                       </span>
                     )}
                   </span>

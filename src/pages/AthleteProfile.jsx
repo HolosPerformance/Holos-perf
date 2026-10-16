@@ -144,6 +144,7 @@ export default function AthleteProfile() {
     last_name: '',
     sport: '',
     birth_date: '',
+    sex: '',
   });
 
   useEffect(() => {
@@ -154,6 +155,7 @@ export default function AthleteProfile() {
         last_name: nameParts.slice(1).join(' ') || '',
         sport: profile.sport || '',
         birth_date: profile.birth_date ? profile.birth_date.slice(0, 10) : '',
+        sex: profile.sex || '',
       };
       setFormData(data);
       setInitialFormData(data);
@@ -167,6 +169,7 @@ export default function AthleteProfile() {
         last_name: nameParts.slice(1).join(' ') || '',
         sport: '',
         birth_date: user?.birth_date ? user.birth_date.slice(0, 10) : '',
+        sex: '',
       };
       setFormData(data);
       setInitialFormData(data);
@@ -225,6 +228,8 @@ export default function AthleteProfile() {
       athlete_email: selectedAthleteEmail,
       sport: formData.sport,
       birth_date: formData.birth_date || null,
+      // Sexe : silhouette du schéma des douleurs (envoyé seulement s'il est renseigné)
+      ...(formData.sex ? { sex: formData.sex } : {}),
     };
 
     if (profile) {
@@ -388,6 +393,17 @@ export default function AthleteProfile() {
                     onChange={(e) => updateFormData({ birth_date: e.target.value })}
                     disabled={isAdmin && !isEditing}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="sex" className="text-sm">Sexe</Label>
+                  <Select value={formData.sex || undefined} onValueChange={(v) => updateFormData({ sex: v })} disabled={isAdmin && !isEditing}>
+                    <SelectTrigger id="sex"><SelectValue placeholder="Non précisé" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="homme">Homme</SelectItem>
+                      <SelectItem value="femme">Femme</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
               </div>

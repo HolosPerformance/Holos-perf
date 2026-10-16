@@ -77,6 +77,17 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
   const lang = language || athleteLanguage(template || questionnaire, (currentUser || user)?.email || userEmail);
   const t = uiStrings(lang);
 
+  // Sexe de l'athlète (profil) : silhouette du schéma « Zones douloureuses »
+  const athleteEmail = (currentUser || user)?.email || userEmail;
+  const hasPainQuestion = ((template || questionnaire)?.questions || []).some(q => q.type === 'body_pain');
+  const [athleteSex, setAthleteSex] = useState(null);
+  React.useEffect(() => {
+    if (!athleteEmail || !hasPainQuestion) return;
+    base44.entities.AthleteProfile.filter({ athlete_email: athleteEmail })
+      .then(profiles => setAthleteSex(profiles[0]?.sex || null))
+      .catch(() => {});
+  }, [athleteEmail, hasPainQuestion]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -317,6 +328,7 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
                     value={responses[q.id]}
                     onChange={(v) => setResponses({ ...responses, [q.id]: v })}
                     t={t}
+                    sex={athleteSex}
                   />
                 </div>
               )}
