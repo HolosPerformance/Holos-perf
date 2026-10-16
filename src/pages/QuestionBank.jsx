@@ -756,7 +756,7 @@ export default function QuestionBank() {
                         const sc = painScaleOf(question);
                         return (
                           <div className="mt-3 text-xs text-slate-600">
-                            Intensité de {sc.min} à {sc.max}{sc.minLabel || sc.maxLabel ? ` (${sc.minLabel || sc.min} → ${sc.maxLabel || sc.max})` : ''}
+                            Intensité de {sc.min} à {sc.max}{sc.minLabel || sc.maxLabel ? ` (${sc.minLabel || sc.min} → ${sc.maxLabel || sc.max})` : ''}{sc.showNumbers ? '' : ' · sans chiffres'}
                           </div>
                         );
                       })()}

@@ -6,16 +6,17 @@
 // gauche est à droite du schéma ; de dos, elle est à gauche.
 
 // Échelle d'intensité : réglée par question dans scaleOptions { min, max,
-// minLabel, maxLabel } (comme une question « Échelle ») ; 1 à 10 par défaut
+// minLabel, maxLabel, showNumbers } (comme une question « Échelle ») ; 1 à 10
+// avec les chiffres affichés par défaut
 // (questions créées avant ce réglage et ancien questionnaire de séance).
-export const PAIN_SCALE_DEFAULT = { min: 1, max: 10, minLabel: '', maxLabel: '' };
+export const PAIN_SCALE_DEFAULT = { min: 1, max: 10, minLabel: '', maxLabel: '', showNumbers: true };
 
 export function painScaleOf(question) {
   const o = question?.scaleOptions || {};
   const min = Number.isFinite(Number(o.min)) && o.min !== '' && o.min != null ? Number(o.min) : PAIN_SCALE_DEFAULT.min;
   const max = Number.isFinite(Number(o.max)) && o.max !== '' && o.max != null ? Number(o.max) : PAIN_SCALE_DEFAULT.max;
   return max > min
-    ? { min, max, minLabel: o.minLabel || '', maxLabel: o.maxLabel || '' }
+    ? { min, max, minLabel: o.minLabel || '', maxLabel: o.maxLabel || '', showNumbers: o.showNumbers !== false }
     : { ...PAIN_SCALE_DEFAULT };
 }
 

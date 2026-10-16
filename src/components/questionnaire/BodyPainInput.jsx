@@ -18,14 +18,14 @@ const viewsOf = (id) => ['front', 'back'].filter(v => VIEW_ZONE_IDS[v].has(id));
 // Couleur selon la position sur l'échelle : vert (bas) → orange → rouge (haut)
 const HUE_STOPS = [[1, 120], [3, 90], [5, 38], [7, 18], [10, 0]];
 const MAX_BUTTONS = 11; // au-delà (ex. 0-100), un curseur remplace les boutons
-function intensityColor(v, scale = PAIN_SCALE_DEFAULT) {
+function intensityColor(v, scale = PAIN_SCALE_DEFAULT, alpha = 1) {
   const ratio = (Number(v) - scale.min) / (scale.max - scale.min);
   const x = 1 + 9 * Math.min(Math.max(Number.isFinite(ratio) ? ratio : 0.5, 0), 1);
   const k = HUE_STOPS.findIndex(([n]) => n >= x);
   const [n0, h0] = HUE_STOPS[Math.max(k - 1, 0)];
   const [n1, h1] = HUE_STOPS[k];
   const hue = n1 === n0 ? h1 : h0 + ((x - n0) / (n1 - n0)) * (h1 - h0);
-  return `hsl(${Math.round(hue)} 80% 50%)`;
+  return `hsl(${Math.round(hue)} 80% 50% / ${alpha})`;
 }
 
 const VIEW_STYLE = {
@@ -83,19 +83,23 @@ function Body({ art, zones, onToggle, scale }) {
   );
 }
 
-// Intensité d'une zone : boutons pour une petite échelle, curseur sinon
+// Intensité d'une zone : boutons pour une petite échelle, curseur sinon.
+// Sans chiffres (scale.showNumbers = false) : pastilles de couleur, curseur seul.
 function IntensityInput({ value, onChange, scale, label }) {
   const count = scale.max - scale.min + 1;
+  const numbers = scale.showNumbers !== false;
   return (
     <div>
       {count <= MAX_BUTTONS ? (
         <div className="flex items-center gap-1" role="radiogroup" aria-label={label}>
           {Array.from({ length: count }, (_, i) => scale.min + i).map(n => (
-            <button key={n} type="button" role="radio" aria-checked={n === value}
+            <button key={n} type="button" role="radio" aria-checked={n === value} aria-label={String(n)}
               onClick={() => onChange(n)}
-              className={`flex-1 h-8 rounded text-xs font-semibold transition ${n === value ? 'text-white shadow' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
-              style={n === value ? { background: intensityColor(n, scale) } : undefined}>
-              {n}
+              className={`flex-1 h-8 rounded text-xs font-semibold transition ${n === value
+                ? `text-white shadow ${numbers ? '' : 'ring-2 ring-offset-1 ring-slate-700 scale-110'}`
+                : numbers ? 'bg-white text-slate-500 hover:bg-slate-100' : 'hover:opacity-80'}`}
+              style={n === value ? { background: intensityColor(n, scale) } : numbers ? undefined : { background: intensityColor(n, scale, 0.3) }}>
+              {numbers && n}
             </button>
           ))}
         </div>
@@ -105,7 +109,7 @@ function IntensityInput({ value, onChange, scale, label }) {
             onChange={(e) => onChange(Number(e.target.value))}
             className="flex-1 h-3 rounded-lg appearance-none cursor-pointer"
             style={{ background: `linear-gradient(to right, ${intensityColor(scale.min, scale)}, ${intensityColor((scale.min + scale.max) / 2, scale)}, ${intensityColor(scale.max, scale)})` }} />
-          <span className="w-10 text-right text-sm font-bold" style={{ color: intensityColor(value, scale) }}>{value}</span>
+          {numbers && <span className="w-10 text-right text-sm font-bold" style={{ color: intensityColor(value, scale) }}>{value}</span>}
         </div>
       )}
       {(scale.minLabel || scale.maxLabel) && (
