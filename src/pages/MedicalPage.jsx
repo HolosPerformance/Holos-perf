@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Activity, HeartPulse, Search, User, ChevronRight } from 'lucide-react';
+import { Activity, HeartPulse, Search, User, ChevronRight, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/medical/StatusBadge';
 import InjuryForm from '@/components/medical/InjuryForm';
@@ -28,7 +28,7 @@ export default function MedicalPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [scopeFilter, setScopeFilter] = useState('all'); // 'all' | club:<id> | group:<id>
-  const [teamFilter, setTeamFilter] = useState('all');   // 'all' | <team id>
+  const [excludedTeamIds, setExcludedTeamIds] = useState([]); // équipes décochées (aucune = toutes)
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [formState, setFormState] = useState(null); // { injury?: object }
 
@@ -42,9 +42,13 @@ export default function MedicalPage() {
         isAdmin ? base44.entities.Group.list('name') : base44.entities.Group.filter({ coach_email: user.email }, 'name'),
       ]);
       const mine = (c) => isAdmin || (c.coach_emails || []).includes(user.email);
+      const myClubs = clubs.filter(mine);
+      const myClubIds = new Set(myClubs.map(c => c.id));
+      // Coach : équipes qu'il encadre directement + toutes celles de ses clubs
+      const myTeam = (t) => mine(t) || myClubIds.has(t.club_id);
       return {
-        clubs: clubs.filter(mine).map(c => ({ key: `club:${c.id}`, id: c.id, label: `Club · ${c.name}`, emails: c.athlete_emails || [] })),
-        teams: teams.filter(mine).map(t => ({ id: t.id, club_id: t.club_id, label: t.name, emails: t.athlete_emails || [] })),
+        clubs: myClubs.map(c => ({ key: `club:${c.id}`, id: c.id, label: `Club · ${c.name}`, emails: c.athlete_emails || [] })),
+        teams: teams.filter(myTeam).map(t => ({ id: t.id, club_id: t.club_id, label: t.name, emails: t.athlete_emails || [] })),
         groups: groups.map(g => ({ key: `group:${g.id}`, id: g.id, label: `Groupe · ${g.name}`, emails: g.athlete_emails || [] })),
       };
     },
@@ -59,15 +63,20 @@ export default function MedicalPage() {
     : scopes.clubs.length > 1 || scopes.groups.length > 1;
   const selectedScope = scopeOptions.find(s => s.key === scopeFilter) || null;
 
-  // Menu équipe : équipes du club choisi ; sans club choisi, toutes les équipes
-  // du coach (l'admin doit d'abord choisir un club)
+  // Filtre équipes (à cocher) : équipes du club choisi ; sans club choisi,
+  // toutes les équipes du coach (l'admin doit d'abord choisir un club)
   const teamOptions = selectedScope?.key.startsWith('club:')
     ? scopes.teams.filter(t => t.club_id === selectedScope.id)
     : !selectedScope && !isAdmin ? scopes.teams : [];
-  const showTeamSelect = teamOptions.length > 1;
-  const selectedTeam = teamOptions.find(t => t.id === teamFilter) || null;
+  const showTeamFilter = teamOptions.length > 1;
+  const selectedTeams = teamOptions.filter(t => !excludedTeamIds.includes(t.id));
+  const allTeamsSelected = selectedTeams.length === teamOptions.length;
+  const selectedTeamEmails = new Set(selectedTeams.flatMap(t => t.emails));
 
-  const changeScope = (value) => { setScopeFilter(value); setTeamFilter('all'); };
+  const toggleTeam = (id) => setExcludedTeamIds(prev =>
+    prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
+  const toggleAllTeams = () => setExcludedTeamIds(allTeamsSelected ? teamOptions.map(t => t.id) : []);
+  const changeScope = (value) => { setScopeFilter(value); setExcludedTeamIds([]); };
 
   const { data: users = [] } = useQuery({
     queryKey: ['medical-users'],
@@ -109,10 +118,11 @@ export default function MedicalPage() {
     }).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   }, [users, athleteProfiles, injuries, scopes, isAdmin]);
 
-  // Athlètes du club / groupe / équipe sélectionnés : base des compteurs et de la liste
+  // Athlètes du club / groupe / équipes sélectionnés : base des compteurs et de la liste
+  // (toutes les équipes cochées : pas de restriction, athlètes sans équipe compris)
   const scoped = athletes.filter(a =>
     (!selectedScope || selectedScope.emails.includes(a.email))
-    && (!selectedTeam || selectedTeam.emails.includes(a.email)));
+    && (!showTeamFilter || allTeamsSelected || selectedTeamEmails.has(a.email)));
 
   const counts = Object.fromEntries(STATUS_FILTERS.map(s => [s.value, 0]));
   for (const a of scoped) counts[a.current?.status || AVAILABLE_STATUS.value]++;
@@ -234,15 +244,6 @@ export default function MedicalPage() {
               </SelectContent>
             </Select>
           )}
-          {showTeamSelect && (
-            <Select value={teamFilter} onValueChange={setTeamFilter}>
-              <SelectTrigger className="sm:w-56"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{isAdmin ? 'Toutes les équipes' : 'Toutes mes équipes'}</SelectItem>
-                {teamOptions.map(t => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="sm:w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -251,6 +252,26 @@ export default function MedicalPage() {
             </SelectContent>
           </Select>
         </div>
+
+        {/* Équipes affichées (à cocher / décocher) */}
+        {showTeamFilter && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-500 mr-1">Équipes :</span>
+            <button type="button" onClick={toggleAllTeams}
+              className={`px-3 py-1.5 rounded-full border text-sm transition ${allTeamsSelected ? 'bg-slate-800 border-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+              Toutes
+            </button>
+            {teamOptions.map(t => {
+              const on = !excludedTeamIds.includes(t.id);
+              return (
+                <button key={t.id} type="button" onClick={() => toggleTeam(t.id)} aria-pressed={on}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm transition ${on ? 'bg-slate-800 border-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+                  {on && <Check className="w-3.5 h-3.5" />}{t.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Liste des athlètes */}
         <Card className="border-0 shadow-sm overflow-hidden">
