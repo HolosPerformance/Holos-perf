@@ -9,6 +9,7 @@ import { CheckCircle, Loader2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { athleteLanguage, localizeTemplate, localizeQuestion, uiStrings } from '@/lib/questionnaireI18n';
+import BodyPainInput from './BodyPainInput';
 
 const resolveSelectionLabels = (answer, sourceQuestion) => {
   if (!Array.isArray(answer)) return answer;
@@ -104,6 +105,8 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
         const max = q.scaleOptions.max ?? 100;
         finalResponses[q.id] = Math.round((min + max) / 2);
       }
+      // Zones douloureuses : aucune zone touchée = aucune douleur (réponse valide)
+      if (q.type === 'body_pain' && !finalResponses[q.id]) finalResponses[q.id] = {};
     });
 
     // Vérifier les champs obligatoires uniquement sur les questions visibles
@@ -304,6 +307,16 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
                     onChange={(e) => setResponses({ ...responses, [q.id]: Number(e.target.value) })}
                     required={q.required}
                     className="h-11 text-base shadow-sm"
+                  />
+                </div>
+              )}
+
+              {q.type === 'body_pain' && (
+                <div className="ml-0 sm:ml-9">
+                  <BodyPainInput
+                    value={responses[q.id]}
+                    onChange={(v) => setResponses({ ...responses, [q.id]: v })}
+                    t={t}
                   />
                 </div>
               )}

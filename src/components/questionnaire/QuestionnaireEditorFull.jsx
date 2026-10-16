@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import QuestionForm from './QuestionForm';
 import { QuestionnaireTranslations } from './TranslationControls';
-import { BASE_LANGUAGE, templateLanguages, languageInfo, localizeTemplate, localizeQuestion, isQuestionTranslated } from '@/lib/questionnaireI18n';
+import { BASE_LANGUAGE, templateLanguages, languageInfo, localizeTemplate, localizeQuestion, isQuestionTranslated, uiStrings } from '@/lib/questionnaireI18n';
+import BodyPainInput from './BodyPainInput';
 
 const EMPTY_QUESTION = {
   id: '', label: '', athleteLabel: '', description: '', type: 'scale', required: false,
@@ -109,6 +110,9 @@ function AthletePreview({ questionnaire: original }) {
                   {q.type === 'text' && <Input placeholder="Votre réponse..." />}
                   {q.type === 'textarea' && <Textarea placeholder="Votre réponse..." rows={3} />}
                   {q.type === 'number' && <Input type="number" placeholder="0" />}
+                  {q.type === 'body_pain' && (
+                    <BodyPainInput value={responses[q.id]} onChange={(v) => setResponses({ ...responses, [q.id]: v })} t={uiStrings(lang)} />
+                  )}
                   {q.type === 'select' && q.selectOptions?.choices && (
                     <div className="grid grid-cols-2 gap-3">
                       {q.selectOptions.choices.map((choice, ci) => {

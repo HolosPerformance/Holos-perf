@@ -40,6 +40,7 @@ export const BODY_LOCATIONS = [
   { value: 'quadriceps',    label: 'Quadriceps' },
   { value: 'ischios',       label: 'Ischio-jambiers' },
   { value: 'genou',         label: 'Genou' },
+  { value: 'tibia',         label: 'Tibia / jambe' },
   { value: 'mollet',        label: 'Mollet' },
   { value: 'tendon_achille', label: "Tendon d'Achille" },
   { value: 'cheville',      label: 'Cheville' },

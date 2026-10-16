@@ -15,6 +15,7 @@ import { fr } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
+import { formatPainValue } from '@/lib/painZones';
 
 const LARGE_EXPORT_THRESHOLD = 3000;
 
@@ -277,6 +278,7 @@ export default function DataExport() {
             }).join('; ');
             return resolved.replace(/"/g, '""');
           }
+          if (question?.type === 'body_pain') return formatPainValue(value).replace(/"/g, '""');
           if (Array.isArray(value)) return value.join('; ').replace(/"/g, '""');
           return String(value).replace(/"/g, '""');
         })

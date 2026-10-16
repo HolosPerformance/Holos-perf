@@ -59,6 +59,7 @@ export default function QuestionForm({
                 <SelectItem value="textarea">Texte long</SelectItem>
                 <SelectItem value="number">Nombre</SelectItem>
                 <SelectItem value="select">Choix multiples</SelectItem>
+                <SelectItem value="body_pain">Zones douloureuses (schéma du corps)</SelectItem>
               </SelectContent>
             </Select>
           </div>
