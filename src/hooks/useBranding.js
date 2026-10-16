@@ -63,10 +63,13 @@ export function useBranding(user, currentPath) {
         // Vérifier d'abord si l'utilisateur est dans un club
         const clubs = await base44.entities.Club.list();
         if (cancelled) return;
-        const myClub = clubs.find(c =>
-          (c.athlete_emails || []).includes(user.email) ||
-          (c.coach_emails || []).includes(user.email)
-        );
+        // Un compte peut figurer dans plusieurs clubs (ex. ancien athlète devenu
+        // coach ailleurs) : priorité au club correspondant à son rôle actuel.
+        const isCoachClub = c => (c.coach_emails || []).includes(user.email);
+        const isAthleteClub = c => (c.athlete_emails || []).includes(user.email);
+        const myClub = isCoach
+          ? clubs.find(isCoachClub) || clubs.find(isAthleteClub)
+          : clubs.find(isAthleteClub) || clubs.find(isCoachClub);
 
         if (!isIndividualView && myClub && (myClub.primary_color || myClub.logo_url)) {
           // Appliquer le branding du club
