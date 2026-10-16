@@ -52,14 +52,6 @@ export const PAIN_ZONES = [
   { id: 'achille_d', view: 'back', location: 'tendon_achille', side: 'droit', label: "Tendon d'Achille", shape: { x: 115, y: 305, width: 10, height: 16, rx: 4 } },
 ];
 
-// Parties non cliquables dessinées pour que la silhouette de dos reste lisible
-export const BACK_DECOR = [
-  { cx: 100, cy: 40, r: 25 },
-  { cx: 70, cy: 85, r: 12 }, { cx: 130, cy: 85, r: 12 },
-  { x: 50, y: 95, width: 15, height: 104, rx: 7 }, { x: 135, y: 95, width: 15, height: 104, rx: 7 },
-  { cx: 80, cy: 336, rx: 11, ry: 15 }, { cx: 120, cy: 336, rx: 11, ry: 15 },
-];
-
 // Zones de l'ancien questionnaire de séance (training_logs.douleurs_zones, valeurs true)
 const LEGACY_ZONES = {
   tete: { location: 'tete', side: 'na', label: 'Tête' },
