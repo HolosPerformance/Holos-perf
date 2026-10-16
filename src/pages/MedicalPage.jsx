@@ -45,10 +45,24 @@ export default function MedicalPage() {
       const myClubs = clubs.filter(mine);
       const myClubIds = new Set(myClubs.map(c => c.id));
       // Coach : équipes qu'il encadre directement + toutes celles de ses clubs
-      const myTeam = (t) => mine(t) || myClubIds.has(t.club_id);
+      const myTeams = teams.filter(t => mine(t) || myClubIds.has(t.club_id));
+      // L'équipe principale d'un club n'existe pas en base : ce sont les
+      // athlètes du club rattachés à aucune de ses équipes (cf. ClubTeamsSection)
+      const mainTeams = myClubs
+        .filter(c => myTeams.some(t => t.club_id === c.id))
+        .map(c => {
+          const inTeams = new Set(teams.filter(t => t.club_id === c.id).flatMap(t => t.athlete_emails || []));
+          return {
+            id: `main:${c.id}`, club_id: c.id, label: c.main_team_name || 'Équipe principale',
+            emails: (c.athlete_emails || []).filter(e => !inTeams.has(e)),
+          };
+        });
       return {
         clubs: myClubs.map(c => ({ key: `club:${c.id}`, id: c.id, label: `Club · ${c.name}`, emails: c.athlete_emails || [] })),
-        teams: teams.filter(myTeam).map(t => ({ id: t.id, club_id: t.club_id, label: t.name, emails: t.athlete_emails || [] })),
+        teams: [
+          ...mainTeams,
+          ...myTeams.map(t => ({ id: t.id, club_id: t.club_id, label: t.name, emails: t.athlete_emails || [] })),
+        ],
         groups: groups.map(g => ({ key: `group:${g.id}`, id: g.id, label: `Groupe · ${g.name}`, emails: g.athlete_emails || [] })),
       };
     },
