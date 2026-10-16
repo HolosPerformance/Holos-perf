@@ -19,7 +19,10 @@ import {
 } from 'lucide-react';
 import QuestionForm from './QuestionForm';
 import { QuestionnaireTranslations } from './TranslationControls';
-import { BASE_LANGUAGE, templateLanguages, languageInfo, localizeTemplate, localizeQuestion, isQuestionTranslated } from '@/lib/questionnaireI18n';
+import { BASE_LANGUAGE, templateLanguages, languageInfo, localizeTemplate, localizeQuestion, isQuestionTranslated, uiStrings } from '@/lib/questionnaireI18n';
+import BodyPainInput from './BodyPainInput';
+import { painScaleOf } from '@/lib/painZones';
+import { painScaleOptionsFor } from './PainScaleEditor';
 
 const EMPTY_QUESTION = {
   id: '', label: '', athleteLabel: '', description: '', type: 'scale', required: false,
@@ -109,6 +112,9 @@ function AthletePreview({ questionnaire: original }) {
                   {q.type === 'text' && <Input placeholder="Votre réponse..." />}
                   {q.type === 'textarea' && <Textarea placeholder="Votre réponse..." rows={3} />}
                   {q.type === 'number' && <Input type="number" placeholder="0" />}
+                  {q.type === 'body_pain' && (
+                    <BodyPainInput value={responses[q.id]} onChange={(v) => setResponses({ ...responses, [q.id]: v })} t={uiStrings(lang)} scale={painScaleOf(q)} />
+                  )}
                   {q.type === 'select' && q.selectOptions?.choices && (
                     <div className="grid grid-cols-2 gap-3">
                       {q.selectOptions.choices.map((choice, ci) => {
@@ -217,7 +223,7 @@ export default function QuestionnaireEditorFull({ user, template, onSave, onCanc
         created_by_email: user.email,
       };
       if (question.type === 'select' && question.selectOptions) payload.selectOptions = question.selectOptions;
-      if (question.type === 'scale' && question.scaleOptions) payload.scaleOptions = question.scaleOptions;
+      if ((question.type === 'scale' || question.type === 'body_pain') && question.scaleOptions) payload.scaleOptions = question.scaleOptions;
       return base44.entities.QuestionBankItem.create(payload);
     },
     onSuccess: () => {
@@ -238,7 +244,7 @@ export default function QuestionnaireEditorFull({ user, template, onSave, onCanc
     const q = {
       ...newQuestion,
       selectOptions: newQuestion.type === 'select' ? newQuestion.selectOptions : undefined,
-      scaleOptions: newQuestion.type === 'scale' ? newQuestion.scaleOptions : undefined,
+      scaleOptions: newQuestion.type === 'scale' || newQuestion.type === 'body_pain' ? newQuestion.scaleOptions : undefined,
     };
     if (editingQuestionId) {
       setFormData({ ...formData, questions: formData.questions.map(x => x.id === editingQuestionId ? { ...q, id: editingQuestionId } : x) });
@@ -253,7 +259,8 @@ export default function QuestionnaireEditorFull({ user, template, onSave, onCanc
     setNewQuestion({
       ...q,
       selectOptions: q.selectOptions || { choices: [{ label: '', color: '#3b82f6', image: '' }] },
-      scaleOptions: q.scaleOptions || { min: 0, max: 100, reversed: false, showNumbers: false, minLabel: '0', maxLabel: '100', color: '#3b82f6' }
+      scaleOptions: q.type === 'body_pain' ? painScaleOptionsFor(q)
+        : q.scaleOptions || { min: 0, max: 100, reversed: false, showNumbers: false, minLabel: '0', maxLabel: '100', color: '#3b82f6' }
     });
     setEditingQuestionId(q.id); setIsAddingQuestion(true); setShowColorPicker(false);
   };

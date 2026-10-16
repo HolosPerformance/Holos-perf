@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ClipboardList, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { questionnaireDay, responseDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 import { createPageUrl } from '@/utils';
@@ -18,7 +19,7 @@ export default function ClubResponses() {
   const urlParams = new URLSearchParams(window.location.search);
   const clubId = urlParams.get('id');
 
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState(() => questionnaireDay());
 
   const { data: club, isLoading: loadingClub } = useQuery({
     queryKey: ['club-responses-club', clubId],
@@ -45,7 +46,7 @@ export default function ClubResponses() {
     queryKey: ['club-responses-day', clubId, selectedDate],
     queryFn: async () => {
       const all = await base44.entities.QuestionnaireResponse.list();
-      return all.filter(r => r.submitted_date?.startsWith(selectedDate));
+      return all.filter(r => responseDay(r) === selectedDate);
     },
     enabled: !!clubId,
   });

@@ -1,17 +1,20 @@
 import React from 'react';
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, ReferenceLine } from 'recharts';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, ReferenceLine, Customized } from 'recharts';
 import { format, parseISO, eachDayOfInterval, getDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, TREND_STAT_DEF, calculateEMA, computeMetricStats, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
+import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, TREND_STAT_DEF, calculateEMA, historyValues, computeMetricStats, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getChartStyle, xAxisInterval } from './chartStyle';
+import { HighlightBands, HighlightLegend, HighlightTooltipLines } from './sessionHighlights';
+import { PeriodCoverageLine } from './AthletePeriodsPanel';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     const value = payload.find(p => p.dataKey === 'value')?.value;
     const trend = payload.find(p => p.dataKey === 'trend')?.value;
-    if (value == null && trend == null) return null;
+    const dayHighlights = payload[0]?.payload?.__highlights;
+    if (value == null && trend == null && !dayHighlights?.length) return null;
     return (
       <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-100">
         <p className="font-medium text-slate-800">{label}</p>
@@ -25,6 +28,8 @@ const CustomTooltip = ({ active, payload, label }) => {
             Tendance: <span className="font-semibold">{trend}</span>
           </p>
         )}
+        <PeriodCoverageLine coverage={payload[0]?.payload?.__periodCoverage} />
+        <HighlightTooltipLines highlights={dayHighlights} />
       </div>
     );
   }
@@ -33,7 +38,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 // `exporting` : rendu pour la capture d'image (style ordinateur, marges
 // réduites, sans animation).
-export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, advancedStats, isZoomed = false, exporting = false }) {
+// `highlights` : types de séance mis en évidence ({ types, days }, voir sessionHighlights).
+export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, advancedStats, emaHistory = [], highlights, isZoomed = false, exporting = false }) {
   const isMobile = useIsMobile() && !exporting;
   const style = getChartStyle(isMobile);
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -50,8 +56,10 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
 
   const filteredData = sortedData.filter(d => d[dataKey] != null);
   const values = filteredData.map(d => d[dataKey]);
-  const ema7 = calculateEMA(values, 7);
-  const ema21 = calculateEMA(values, 21);
+  // MME amorcées sur les saisies antérieures à la période (emaHistory)
+  const history = historyValues(emaHistory, dataKey);
+  const ema7 = calculateEMA(values, 7, history);
+  const ema21 = calculateEMA(values, 21, history);
   const metricStats = computeMetricStats(values);
   const trend = advancedStats?.trend
     ? computeLinearTrend(
@@ -77,12 +85,14 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
       value: null,
       ema7: null,
       ema21: null,
-      trend: trend ? trend.valueAt(dateKey) : null
+      trend: trend ? trend.valueAt(dateKey) : null,
+      __highlights: highlights?.days?.[dateKey]
     };
 
     if (existingData) {
       dataPoint.value = existingData[dataKey];
       dataPoint.athlete = existingData.athlete_name;
+      dataPoint.__periodCoverage = existingData.__periodCoverage;
 
       const dataIndex = filteredData.findIndex(d =>
         format(parseISO(d.training_date), 'yyyy-MM-dd') === dateKey
@@ -97,24 +107,17 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
     return dataPoint;
   });
 
-  // Jours de compétition : détection par le session_type (label dynamique)
-  const competitionIndices = chartData
-    .map((d, i) => {
-      const st = (d.session_type || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-      if (st.includes('competition') || st.includes('comp')) return i;
-      return null;
-    })
-    .filter(i => i !== null);
-
   return (
     <Card className={exporting ? 'border-0 shadow-none bg-white' : 'shadow-sm border-0'}>
       <CardHeader className={exporting ? 'p-2 pb-1' : 'pb-2'}>
-        <CardTitle className={exporting ? 'text-xl font-semibold text-slate-900' : 'text-base font-semibold'}>{title}</CardTitle>
+        <CardTitle className={exporting ? 'text-base font-semibold text-slate-900' : 'text-base font-semibold'}>{title}</CardTitle>
       </CardHeader>
       <CardContent className={exporting ? 'p-0' : isMobile ? 'px-2 pb-4' : undefined}>
         <ResponsiveContainer width="100%" height={height}>
           <ComposedChart data={chartData} margin={{ top: 5, right: isZoomed && !isMobile ? 130 : 5, left: -12, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            {/* Types de séance mis en évidence, dessinés derrière les barres */}
+            {highlights?.types?.length > 0 && <Customized component={HighlightBands} />}
             <XAxis
               dataKey="fullDate"
               tick={style.axisTick}
@@ -141,16 +144,6 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
                 iconSize={12}
               />
             )}
-            {competitionIndices.map((index) => (
-              <ReferenceLine
-                key={`competition-${index}`}
-                x={chartData[index].fullDate}
-                stroke="#ef4444"
-                strokeWidth={1.5}
-                strokeOpacity={0.6}
-                strokeDasharray="4 2"
-              />
-            ))}
             {metricStats && REFERENCE_STAT_DEFS.filter(def => advancedStats?.[def.key]).map((def) => (
               <ReferenceLine
                 key={def.key}
@@ -197,6 +190,7 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
             )}
           </ComposedChart>
         </ResponsiveContainer>
+        <HighlightLegend types={highlights?.types} fontSize={style.fontSize} />
       </CardContent>
     </Card>
   );

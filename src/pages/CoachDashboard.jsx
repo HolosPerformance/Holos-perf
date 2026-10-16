@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase as base44 } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,20 +11,23 @@ import { Label } from "@/components/ui/label";
 import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import HistogramChart from '../components/dashboard/HistogramChart';
 import BoxPlotChart, { autoBoxplotGroupBy, LOW_COUNT } from '../components/dashboard/BoxPlotChart';
-import ZoomableChartCard, { EXPORT_CHART_WIDTH } from '../components/dashboard/ZoomableChartCard';
+import ZoomableChartCard, { EXPORT_WIDTH_HALF } from '../components/dashboard/ZoomableChartCard';
 import AdvancedAnalyses from '../components/dashboard/analysis/AdvancedAnalyses';
 import { CollapsibleAnalysis } from '../components/dashboard/analysis/AnalysisParts';
 import MetricSelector from '../components/dashboard/MetricSelector';
 import StatCard from '../components/dashboard/StatCard';
 import SummaryStatsTable from '../components/dashboard/SummaryStatsTable';
 import AdvancedStatsToggle from '../components/dashboard/AdvancedStatsToggle';
+import { highlightColors, buildHighlightDays } from '../components/dashboard/sessionHighlights';
+import AthletePeriodsPanel, { effectiveAthletePeriods, isInAthletePeriod, athletePeriodStart } from '../components/dashboard/AthletePeriodsPanel';
 import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetricStats } from '@/lib/advancedStats';
 import {
   Users, Activity, TrendingUp, Calendar, Filter,
   RefreshCw, ArrowLeft, Search, Zap, Download,
-  BoxSelect, Table2, BarChart3, MessageSquare
+  BoxSelect, Table2, BarChart3, MessageSquare, SlidersHorizontal
 } from 'lucide-react';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
+import { questionnaireDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -132,6 +135,26 @@ export default function CoachDashboard() {
   // Regroupement des boxplots : null = automatique selon la longueur de la période
   const [boxplotGroupByChoice, setBoxplotGroupByChoice] = useState(null);
   const [showRemarks, setShowRemarks] = useState(false);
+  // Types de séance mis en évidence sur les graphiques (mémorisés dans le navigateur)
+  const [highlightedTypes, setHighlightedTypes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('dashboardHighlightedTypes') || '[]'); } catch { return []; }
+  });
+  const toggleHighlightedType = (key) => setHighlightedTypes(prev => {
+    const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
+    try { localStorage.setItem('dashboardHighlightedTypes', JSON.stringify(next)); } catch { /* stockage indisponible */ }
+    return next;
+  });
+
+  // Paramètres avancés : période propre à certains athlètes, comprise dans la
+  // période globale (mémorisée dans le navigateur)
+  const [showAdvancedPeriods, setShowAdvancedPeriods] = useState(false);
+  const [athletePeriods, setAthletePeriodsState] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('dashboardAthletePeriods') || '{}'); } catch { return {}; }
+  });
+  const setAthletePeriods = (next) => {
+    setAthletePeriodsState(next);
+    try { localStorage.setItem('dashboardAthletePeriods', JSON.stringify(next)); } catch { /* stockage indisponible */ }
+  };
 
   useEffect(() => {
     if (user?.metric_colors) {
@@ -204,22 +227,32 @@ export default function CoachDashboard() {
     enabled: !!user && (isCoach || isAdmin),
   });
 
+  // Athlètes dont on charge les saisies : uniquement ceux sélectionnés (rien
+  // n'est affiché sans sélection), restreints au groupe/club pour un coach.
+  // Le filtrage est fait par Supabase, sur tout l'historique de ces athlètes.
+  const fetchedAthleteEmails = useMemo(() => {
+    if (isAdmin) return [...selectedAthleteEmails].sort();
+    if (!isCoach) return [];
+    const individual = localStorage.getItem('coachView') === 'individual';
+    const pool = new Set([
+      ...(coachGroup?.athlete_emails || []),
+      ...(!individual && coachClub ? coachClub.athlete_emails || [] : []),
+    ]);
+    return selectedAthleteEmails.filter(e => pool.has(e)).sort();
+  }, [isAdmin, isCoach, selectedAthleteEmails, coachGroup, coachClub]);
+
   const { data: realLogs = [], isLoading, refetch } = useQuery({
-    queryKey: ['questionnaire-responses-coach', user?.email, coachGroup?.id, coachClub?.id, assignedTemplates.map(t => t.id).join(',')],
+    queryKey: ['questionnaire-responses-coach', user?.email, fetchedAthleteEmails.join(','), assignedTemplates.map(t => t.id).join(',')],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       let filteredResponses;
-      if (isAdmin) {
-        const allResponses = await base44.entities.QuestionnaireResponse.list('-submitted_date', 2000);
-        const templateIds = assignedTemplates.map(t => t.id);
-        filteredResponses = templateIds.length > 0 ? allResponses.filter(r => templateIds.includes(r.template_id)) : allResponses;
-      } else if (isCoach) {
-        const allResponses = await base44.entities.QuestionnaireResponse.list('-submitted_date', 1000);
-        let coachAthleteEmails = [...(coachGroup?.athlete_emails || [])];
-        if (!isIndividualView && coachClub) {
-          coachAthleteEmails = [...new Set([...coachAthleteEmails, ...(coachClub.athlete_emails || [])])];
+      if (isAdmin || isCoach) {
+        if (fetchedAthleteEmails.length === 0) return [];
+        filteredResponses = await base44.entities.QuestionnaireResponse.filterIn('athlete_email', fetchedAthleteEmails, '-submitted_date');
+        if (isAdmin) {
+          const templateIds = assignedTemplates.map(t => t.id);
+          if (templateIds.length > 0) filteredResponses = filteredResponses.filter(r => templateIds.includes(r.template_id));
         }
-        if (coachAthleteEmails.length === 0) return [];
-        filteredResponses = allResponses.filter(r => coachAthleteEmails.includes(r.athlete_email));
       } else {
         return [];
       }
@@ -261,7 +294,7 @@ export default function CoachDashboard() {
           id: response.id,
           athlete_email: response.athlete_email,
           athlete_name: response.athlete_name,
-          training_date: format(submittedDate, 'yyyy-MM-dd'),
+          training_date: questionnaireDay(submittedDate),
           template_id: response.template_id,
           session_type: sessionType || (hasSelectFirstQuestion ? 'inconnu' : 'questionnaire'),
           duration_minutes: null,
@@ -273,20 +306,11 @@ export default function CoachDashboard() {
   });
 
   const { data: rawTrainingLogs = [] } = useQuery({
-    queryKey: ['training-logs-coach-dashboard', user?.email, coachGroup?.id, coachClub?.id],
+    queryKey: ['training-logs-coach-dashboard', user?.email, fetchedAthleteEmails.join(',')],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
-      if (isAdmin) {
-        return await base44.entities.TrainingLog.list('-training_date', 2000);
-      } else if (isCoach) {
-        let coachAthleteEmails = [...(coachGroup?.athlete_emails || [])];
-        if (!isIndividualView && coachClub) {
-          coachAthleteEmails = [...new Set([...coachAthleteEmails, ...(coachClub.athlete_emails || [])])];
-        }
-        if (coachAthleteEmails.length === 0) return [];
-        const all = await base44.entities.TrainingLog.list('-training_date', 2000);
-        return all.filter(l => coachAthleteEmails.includes(l.athlete_email));
-      }
-      return [];
+      if (fetchedAthleteEmails.length === 0) return [];
+      return await base44.entities.TrainingLog.filterIn('athlete_email', fetchedAthleteEmails, '-training_date');
     },
     enabled: !!user && (isAdmin || isCoach),
   });
@@ -627,12 +651,28 @@ export default function CoachDashboard() {
 
   const dateRange = { start: parseISO(startDate), end: parseISO(endDate) };
 
+  // Périodes individuelles appliquées aux athlètes sélectionnés
+  const activeAthletePeriods = useMemo(
+    () => effectiveAthletePeriods(athletePeriods, selectedAthleteEmails, startDate, endDate),
+    [athletePeriods, selectedAthleteEmails, startDate, endDate]
+  );
+  const customPeriodCount = Object.keys(activeAthletePeriods).length;
+  const selectedAthletesForPeriods = selectedAthleteEmails.map(email =>
+    selectableAthletes.find(a => a.email === email) || { email, name: email });
+
   // Filter logs
   const filteredLogs = userFilteredLogs.filter(log => {
     const logDate = parseISO(log.training_date);
     const inDateRange = logDate >= dateRange.start && logDate <= dateRange.end;
     const matchesSessionType = sessionTypeFilters.includes(log.session_type);
-    return inDateRange && matchesSessionType;
+    return inDateRange && matchesSessionType && isInAthletePeriod(activeAthletePeriods, log);
+  });
+
+  // Nombre d'athlètes sélectionnés dont la période couvre un jour donné
+  // (affiché dans l'infobulle des médianes quand des périodes individuelles sont actives)
+  const periodCoverage = (day) => ({
+    count: selectedAthleteEmails.filter(email => isInAthletePeriod(activeAthletePeriods, { athlete_email: email, training_date: day })).length,
+    total: selectedAthleteEmails.length,
   });
 
   // Remap all question ids in a log to their canonical key so grouped questions plot together
@@ -648,16 +688,18 @@ export default function CoachDashboard() {
     return remapped;
   };
 
-  const processedLogs = (() => {
+  // Points des graphiques : saisies brutes pour un athlète, médiane par jour
+  // pour plusieurs athlètes
+  const toChartPoints = (logs, withCoverage) => {
     if (selectedAthleteEmails.length <= 1) {
-      return filteredLogs.map(log => ({
+      return logs.map(log => ({
         ...remapLogMetrics(log),
         dateLabel: format(parseISO(log.training_date), 'dd/MM', { locale: fr })
       }));
     }
 
     const grouped = {};
-    filteredLogs.forEach(rawLog => {
+    logs.forEach(rawLog => {
       const log = remapLogMetrics(rawLog);
       const dateKey = log.training_date;
       if (!grouped[dateKey]) {
@@ -693,10 +735,22 @@ export default function CoachDashboard() {
         athlete_name: day.athlete_name,
         athlete_email: 'group',
         duration_minutes: null,
+        ...(withCoverage && customPeriodCount > 0 ? { __periodCoverage: periodCoverage(day.training_date) } : {}),
         ...medians
       };
     });
-  })();
+  };
+  const processedLogs = toChartPoints(filteredLogs, true);
+
+  // Saisies antérieures à la période, pour amorcer les MME (mêmes athlètes et
+  // types de séance). Un seul athlète : avant le début de sa propre période ;
+  // plusieurs : avant le début de la période globale, en médianes par jour.
+  const emaHistory = toChartPoints(userFilteredLogs.filter(log => {
+    const limit = selectedAthleteEmails.length <= 1
+      ? athletePeriodStart(activeAthletePeriods, log.athlete_email, startDate)
+      : startDate;
+    return log.training_date < limit && sessionTypeFilters.includes(log.session_type);
+  }), false);
 
   const logsWithLabels = processedLogs;
 
@@ -715,8 +769,9 @@ export default function CoachDashboard() {
   );
   const analysisPeriodLogs = useMemo(
     () => analysisAthleteLogs.filter(log =>
-      log.training_date >= startDate && log.training_date <= endDate && sessionTypeFilters.includes(log.session_type)),
-    [analysisAthleteLogs, startDate, endDate, sessionTypeFilters]
+      log.training_date >= startDate && log.training_date <= endDate && sessionTypeFilters.includes(log.session_type)
+      && isInAthletePeriod(activeAthletePeriods, log)),
+    [analysisAthleteLogs, startDate, endDate, sessionTypeFilters, activeAthletePeriods]
   );
   const analysisGlobalFilters = useMemo(
     () => ({ startDate, endDate, sessionTypes: sessionTypeFilters }),
@@ -878,6 +933,19 @@ export default function CoachDashboard() {
     }));
   });
   const evolutionEmaDefs = EMA_STAT_DEFS.filter(def => evolutionStats[def.key]);
+
+  // Types proposés à la mise en évidence : ceux présents dans les saisies des
+  // athlètes sélectionnés (hors « Questionnaire » / « Autre », qui n'en sont pas)
+  const presentSessionTypes = new Set(userFilteredLogs.map(l => l.session_type));
+  const highlightableTypes = Object.entries(dynamicSessionTypes.labels)
+    .filter(([key]) => key !== 'questionnaire' && key !== 'inconnu' && presentSessionTypes.has(key));
+  const highlightTypeColors = highlightColors(highlightableTypes);
+  const activeHighlightTypes = highlightableTypes
+    .filter(([key]) => highlightedTypes.includes(key))
+    .map(([key, label]) => ({ key, label, color: highlightTypeColors[key] }));
+  const chartHighlights = activeHighlightTypes.length > 0
+    ? { types: activeHighlightTypes, days: buildHighlightDays(filteredLogs, activeHighlightTypes) }
+    : undefined;
 
   const toggleSessionTypeFilter = (type) => {
     setSessionTypeFilters(prev =>
@@ -1070,6 +1138,25 @@ export default function CoachDashboard() {
                   className="h-9 w-40"
                 />
               </div>
+              {(isAdmin || isCoach) && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={showAdvancedPeriods ? 'secondary' : 'outline'}
+                    size="sm"
+                    className="h-9"
+                    onClick={() => setShowAdvancedPeriods(v => !v)}
+                    aria-expanded={showAdvancedPeriods}
+                  >
+                    <SlidersHorizontal className="w-4 h-4 mr-1.5" />
+                    Paramètres avancés
+                  </Button>
+                  {customPeriodCount > 0 && (
+                    <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100">
+                      {customPeriodCount} athlète{customPeriodCount > 1 ? 's' : ''} avec une période personnalisée
+                    </Badge>
+                  )}
+                </div>
+              )}
               {Object.keys(dynamicSessionTypes.labels).length > 0 && (
                 <div className="flex items-center gap-3 flex-wrap">
                   <Label className="text-sm text-slate-600">Type :</Label>
@@ -1086,6 +1173,42 @@ export default function CoachDashboard() {
                 </div>
               )}
             </div>
+            {showAdvancedPeriods && (isAdmin || isCoach) && (
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <h4 className="text-sm font-semibold text-slate-800 mb-2">Période par athlète</h4>
+                <AthletePeriodsPanel
+                  athletes={selectedAthletesForPeriods}
+                  periods={athletePeriods}
+                  onChange={setAthletePeriods}
+                  startDate={startDate}
+                  endDate={endDate}
+                />
+              </div>
+            )}
+            {highlightableTypes.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-slate-100">
+                <Label className="text-sm text-slate-600 mr-1">Mettre en évidence :</Label>
+                {highlightableTypes.map(([key, label]) => {
+                  const active = highlightedTypes.includes(key);
+                  const color = highlightTypeColors[key];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleHighlightedType(key)}
+                      aria-pressed={active}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition-colors"
+                      style={active
+                        ? { backgroundColor: `${color}22`, borderColor: color, color: '#0f172a' }
+                        : { backgroundColor: '#fff', borderColor: '#e2e8f0', color: '#64748b' }}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color, opacity: active ? 1 : 0.4 }} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1146,7 +1269,9 @@ export default function CoachDashboard() {
                   height={isZoomed ? zoomHeight : undefined}
                   statLines={evolutionStatLines}
                   emaDefs={evolutionEmaDefs}
+                  emaHistory={emaHistory}
                   showTrend={!!evolutionStats.trend}
+                  highlights={chartHighlights}
                   isZoomed={isZoomed}
                   exporting={exporting}
                 />
@@ -1187,6 +1312,7 @@ export default function CoachDashboard() {
                 key={key}
                 title={label}
                 zoomedHeight={450}
+                exportWidth={EXPORT_WIDTH_HALF}
                 headerExtra={
                   <AdvancedStatsToggle
                     variant="icon"
@@ -1206,6 +1332,8 @@ export default function CoachDashboard() {
                     endDate={endDate}
                     height={isZoomed ? zoomHeight : undefined}
                     advancedStats={getChartStats(key)}
+                    emaHistory={emaHistory}
+                    highlights={chartHighlights}
                     isZoomed={isZoomed}
                     exporting={exporting}
                   />
@@ -1254,8 +1382,8 @@ export default function CoachDashboard() {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {boxplotMetricEntries.map(([key, label]) => (
-                  <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420}>
-                    {(isZoomed, zoomHeight, exporting) => (
+                  <ZoomableChartCard key={key} title={`${label} — distribution`} zoomedHeight={420} exportWidth={EXPORT_WIDTH_HALF}>
+                    {(isZoomed, zoomHeight, exporting, exportChartWidth) => (
                       <BoxPlotChart
                         data={rawFilteredLogs}
                         dataKey={key}
@@ -1265,8 +1393,9 @@ export default function CoachDashboard() {
                         endDate={endDate}
                         height={isZoomed ? zoomHeight : undefined}
                         groupBy={boxplotGroupBy}
+                        highlights={chartHighlights}
                         exporting={exporting}
-                        fitWidth={exporting ? EXPORT_CHART_WIDTH : undefined}
+                        fitWidth={exporting ? exportChartWidth : undefined}
                       />
                     )}
                   </ZoomableChartCard>

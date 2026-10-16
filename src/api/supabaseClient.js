@@ -30,6 +30,7 @@ const TABLE_MAP = {
   StravaToken:             'strava_tokens',
   UserPreference:          'user_preferences',
   AppSetting:              'app_settings',
+  Injury:                  'injuries',
 };
 
 function parseOrder(orderStr) {
@@ -39,6 +40,9 @@ function parseOrder(orderStr) {
 }
 
 const realtimeChannels = new Map();
+
+const PAGE_SIZE = 1000;
+const IN_CHUNK_SIZE = 50;
 
 function makeEntity(entityName) {
   const table = TABLE_MAP[entityName];
@@ -62,6 +66,36 @@ function makeEntity(entityName) {
       const { data, error } = await q;
       if (error) throw new Error(`[${table}] filter: ${error.message}`);
       return data || [];
+    },
+
+    // Toutes les lignes dont `column` vaut l'une des `values`, sans limite :
+    // valeurs découpées en lots (longueur de l'URL) et résultats lus par pages
+    // (Supabase plafonne chaque réponse à 1000 lignes).
+    // `range` (optionnel) : { column, from, to } bornes incluses, ex. sur une date.
+    async filterIn(column, values = [], orderBy = '-created_at', range = null) {
+      const unique = [...new Set(values)].filter(Boolean);
+      if (unique.length === 0) return [];
+      const order = parseOrder(orderBy);
+      const rows = [];
+      for (let i = 0; i < unique.length; i += IN_CHUNK_SIZE) {
+        const chunk = unique.slice(i, i + IN_CHUNK_SIZE);
+        for (let from = 0; ; from += PAGE_SIZE) {
+          let q = supabaseRaw.from(table).select('*').in(column, chunk);
+          if (range?.from != null) q = q.gte(range.column, range.from);
+          if (range?.to != null) q = q.lte(range.column, range.to);
+          if (order) q = q.order(order.column, { ascending: order.ascending });
+          q = q.order('id', { ascending: true }).range(from, from + PAGE_SIZE - 1);
+          const { data, error } = await q;
+          if (error) throw new Error(`[${table}] filterIn: ${error.message}`);
+          rows.push(...(data || []));
+          if (!data || data.length < PAGE_SIZE) break;
+        }
+      }
+      if (order) {
+        const dir = order.ascending ? 1 : -1;
+        rows.sort((a, b) => (a[order.column] < b[order.column] ? -dir : a[order.column] > b[order.column] ? dir : 0));
+      }
+      return rows;
     },
 
     async get(id) {

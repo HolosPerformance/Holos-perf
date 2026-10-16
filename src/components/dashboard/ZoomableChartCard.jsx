@@ -5,15 +5,14 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import html2canvas from 'html2canvas';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-// Format fixe des captures : 16:9 (diaporama), exporté en résolution ×2.
-const EXPORT_WIDTH = 1600;
-const EXPORT_HEIGHT = 900;
-const EXPORT_PADDING = 16;
+// Captures : le graphique tel qu'il apparaît sur le dashboard (vue normale,
+// non agrandie), à la largeur qu'il a sur un écran d'ordinateur. La taille est
+// donc fixe pour un même type de graphique, quel que soit l'écran utilisé.
+// Exporté en résolution ×2.
+export const EXPORT_WIDTH_FULL = 1200; // graphique pleine largeur (évolution)
+export const EXPORT_WIDTH_HALF = 600;  // graphique sur deux colonnes (histogrammes, boxplots)
+const EXPORT_PADDING = 8;
 const EXPORT_SCALE = 2;
-// Place prise par le titre du graphique dans la capture
-const EXPORT_TITLE_HEIGHT = 44;
-export const EXPORT_CHART_HEIGHT = EXPORT_HEIGHT - 2 * EXPORT_PADDING - EXPORT_TITLE_HEIGHT;
-export const EXPORT_CHART_WIDTH = EXPORT_WIDTH - 2 * EXPORT_PADDING;
 
 const slugify = (str) => (str || 'graphique')
   .normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -24,12 +23,13 @@ const iconButtonClass = 'p-1.5 rounded-md bg-white/90 hover:bg-white border bord
 // Wraps a chart in a relative container with a "zoom in" button (top-right).
 // Clicking it opens the same chart, rendered larger, in a modal with a
 // "zoom out" button (also top-right) to return to the normal view.
-// A camera button exports the chart as a PNG of fixed size (16:9), rendered
-// off-screen so the image is identical whatever the screen size.
-// `children` is a render-prop: (isZoomed, height, exporting) => ReactNode
+// A camera button exports the chart as a PNG: the normal (non-zoomed) chart,
+// rendered off-screen at a fixed width (exportWidth) so the image is identical
+// whatever the screen size.
+// `children` is a render-prop: (isZoomed, height, exporting, exportChartWidth) => ReactNode
 // `headerExtra` (optional) renders next to the zoom button, e.g. a per-chart
 // control such as the "statistiques avancées" toggle.
-export default function ZoomableChartCard({ title, zoomedHeight = 500, headerExtra, children }) {
+export default function ZoomableChartCard({ title, zoomedHeight = 500, exportWidth = EXPORT_WIDTH_FULL, headerExtra, children }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -45,8 +45,6 @@ export default function ZoomableChartCard({ title, zoomedHeight = 500, headerExt
         const canvas = await html2canvas(exportRef.current, {
           backgroundColor: '#ffffff',
           scale: EXPORT_SCALE,
-          width: EXPORT_WIDTH,
-          height: EXPORT_HEIGHT,
           logging: false,
           // Dans la copie capturée, le graphique est ramené dans la zone visible
           onclone: (doc) => {
@@ -127,10 +125,9 @@ export default function ZoomableChartCard({ title, zoomedHeight = 500, headerExt
           aria-hidden="true"
           style={{
             position: 'fixed',
-            left: -EXPORT_WIDTH - 10000,
+            left: -exportWidth - 10000,
             top: 0,
-            width: EXPORT_WIDTH,
-            height: EXPORT_HEIGHT,
+            width: exportWidth,
             padding: EXPORT_PADDING,
             boxSizing: 'border-box',
             background: '#ffffff',
@@ -138,7 +135,7 @@ export default function ZoomableChartCard({ title, zoomedHeight = 500, headerExt
             pointerEvents: 'none',
           }}
         >
-          {children(true, EXPORT_CHART_HEIGHT, true)}
+          {children(false, undefined, true, exportWidth - 2 * EXPORT_PADDING)}
         </div>,
         document.body
       )}

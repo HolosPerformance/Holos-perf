@@ -1,11 +1,13 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, Customized } from 'recharts';
 import { format, parseISO, eachDayOfInterval, getDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { calculateEMA, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
+import { calculateEMA, historyValues, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getChartStyle, xAxisInterval } from './chartStyle';
+import { HighlightBands, HighlightLegend, HighlightTooltipLines } from './sessionHighlights';
+import { PeriodCoverageLine } from './AthletePeriodsPanel';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -20,6 +22,8 @@ const CustomTooltip = ({ active, payload, label }) => {
             </p>
           ))}
         </div>
+        <PeriodCoverageLine coverage={payload[0]?.payload?.__periodCoverage} />
+        <HighlightTooltipLines highlights={payload[0]?.payload?.__highlights} />
       </div>
     );
   }
@@ -27,9 +31,10 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 // `showTrend` : une droite de tendance par indicateur sélectionné.
+// `highlights` : types de séance mis en évidence ({ types, days }, voir sessionHighlights).
 // `exporting` : rendu pour la capture d'image (style ordinateur, marges
 // réduites, légende entière, sans animation).
-export default function AthleteDataChart({ data, selectedMetrics, title, metricConfig, startDate, endDate, height = 350, statLines = [], emaDefs = [], showTrend = false, isZoomed = false, exporting = false }) {
+export default function AthleteDataChart({ data, selectedMetrics, title, metricConfig, startDate, endDate, height = 350, statLines = [], emaDefs = [], emaHistory = [], showTrend = false, highlights, isZoomed = false, exporting = false }) {
   const isMobile = useIsMobile() && !exporting;
   const style = getChartStyle(isMobile);
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -45,12 +50,13 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
   });
 
   // Moyennes mobiles exponentielles : une série par indicateur sélectionné et
-  // par MME active, calculée sur les saisies existantes (dans l'ordre des dates).
+  // par MME active, calculée sur les saisies existantes (dans l'ordre des dates),
+  // amorcée sur les saisies antérieures à la période (emaHistory).
   const emaByDate = new Map();
   selectedMetrics.forEach(metric => {
     const points = sortedData.filter(d => d[metric] != null);
     emaDefs.forEach(def => {
-      const emaValues = calculateEMA(points.map(d => d[metric]), def.period);
+      const emaValues = calculateEMA(points.map(d => d[metric]), def.period, historyValues(emaHistory, metric));
       points.forEach((d, i) => {
         const date = format(parseISO(d.training_date), 'yyyy-MM-dd');
         const entry = emaByDate.get(date) || {};
@@ -89,6 +95,7 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
       isMonday,
       dayOfWeek
     };
+    const dayHighlights = highlights?.days?.[dateKey];
 
     if (existingData) {
       Object.assign(dataPoint, existingData);
@@ -97,6 +104,8 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
     Object.entries(trends).forEach(([metric, trend]) => {
       dataPoint[`${metric}__trend`] = trend.valueAt(dateKey);
     });
+    // Après les données du jour, qui ne doivent pas l'écraser
+    dataPoint.__highlights = dayHighlights;
 
     return dataPoint;
   });
@@ -104,15 +113,6 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
   const chartColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6'];
   const colorOf = (metric, index) => metricConfig?.[metric]?.color || chartColors[index % chartColors.length];
   const nameOf = (metric) => metricConfig?.[metric]?.name || metric;
-
-  // Jours de compétition : détection par le session_type (label dynamique)
-  const competitionIndices = chartData
-    .map((d, i) => {
-      const st = (d.session_type || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-      if (st.includes('competition') || st.includes('comp')) return i;
-      return null;
-    })
-    .filter(i => i !== null);
 
   // Légende limitée à 2 lignes, défilable au-delà, pour que les nombreuses
   // séries de statistiques n'écrasent pas le graphique (sauf à l'export, où
@@ -126,13 +126,15 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
     <Card className={exporting ? 'border-0 shadow-none bg-white' : 'shadow-sm border-0'}>
       {title && (
         <CardHeader className={exporting ? 'p-2 pb-1' : 'pb-2'}>
-          <CardTitle className={exporting ? 'text-xl font-semibold text-slate-900' : 'text-lg'}>{title}</CardTitle>
+          <CardTitle className={exporting ? 'text-lg text-slate-900' : 'text-lg'}>{title}</CardTitle>
         </CardHeader>
       )}
       <CardContent className={exporting ? 'p-0' : `${title ? 'pt-0' : 'pt-6'}${isMobile ? ' px-2 pb-4' : ''}`}>
         <ResponsiveContainer width="100%" height={height}>
           <LineChart data={chartData} margin={{ top: 5, right: isZoomed && !isMobile ? 180 : 5, left: -12, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            {/* Types de séance mis en évidence, dessinés derrière les courbes */}
+            {highlights?.types?.length > 0 && <Customized component={HighlightBands} />}
             <XAxis
               dataKey="fullDate"
               tick={style.axisTick}
@@ -152,16 +154,6 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={legendStyle} />
-            {competitionIndices.map((index) => (
-              <ReferenceLine
-                key={`competition-${index}`}
-                x={chartData[index].fullDate}
-                stroke="#ef4444"
-                strokeWidth={1.5}
-                strokeOpacity={0.6}
-                strokeDasharray="4 2"
-              />
-            ))}
             {statLines.map((line) => (
               <ReferenceLine
                 key={line.id}
@@ -229,6 +221,7 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
             ))}
           </LineChart>
         </ResponsiveContainer>
+        <HighlightLegend types={highlights?.types} fontSize={style.fontSize} />
       </CardContent>
     </Card>
   );

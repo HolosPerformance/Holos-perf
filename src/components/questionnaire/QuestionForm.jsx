@@ -6,6 +6,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Save, X, Plus, Trash2 } from 'lucide-react';
 import { QuestionTranslations } from './TranslationControls';
+import PainScaleEditor, { withQuestionType } from './PainScaleEditor';
+
+const SCALE_DEFAULT = { min: 0, max: 100, reversed: false, showNumbers: false, minLabel: '0', maxLabel: '100', color: '#3b82f6' };
 
 const COLORS = [
   { name: 'Rouge', value: '#ea4335' }, { name: 'Orange', value: '#ff6d00' },
@@ -51,7 +54,7 @@ export default function QuestionForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Type de réponse</Label>
-            <Select value={newQuestion.type} onValueChange={(v) => setNewQuestion({ ...newQuestion, type: v })}>
+            <Select value={newQuestion.type} onValueChange={(v) => setNewQuestion(withQuestionType(newQuestion, v, SCALE_DEFAULT))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="scale">Échelle (0-100)</SelectItem>
@@ -59,6 +62,7 @@ export default function QuestionForm({
                 <SelectItem value="textarea">Texte long</SelectItem>
                 <SelectItem value="number">Nombre</SelectItem>
                 <SelectItem value="select">Choix multiples</SelectItem>
+                <SelectItem value="body_pain">Zones douloureuses (schéma du corps)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -175,6 +179,11 @@ export default function QuestionForm({
               {newQuestion.scaleOptions?.showNumbers && <div className="text-center mt-2 text-lg font-semibold" style={{ color: newQuestion.scaleOptions?.color }}>{previewValue}</div>}
             </div>
           </div>
+        )}
+
+        {/* Zones douloureuses : échelle d'intensité + aperçu */}
+        {newQuestion.type === 'body_pain' && (
+          <PainScaleEditor question={newQuestion} onChange={(scaleOptions) => setNewQuestion({ ...newQuestion, scaleOptions })} />
         )}
 
         {/* Select options */}

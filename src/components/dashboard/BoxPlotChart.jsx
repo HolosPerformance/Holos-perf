@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { computeMetricStats } from '@/lib/advancedStats';
+import { HighlightLegend, BAND_RATIO, bandOpacity, highlightText } from './sessionHighlights';
 import {
   format, parseISO, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval,
   startOfWeek, endOfWeek, startOfMonth, endOfMonth, endOfDay, getISOWeek, differenceInCalendarDays,
@@ -91,7 +92,7 @@ const fmtNum = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 // Tukey, valeurs extrêmes), sur la période filtrée déjà appliquée aux autres
 // graphiques. Positions en pixels réels pour un rendu net ; défilement
 // horizontal si les colonnes sont nombreuses.
-export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', startDate, endDate, height = 280, groupBy = 'day', exporting = false, fitWidth }) {
+export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', startDate, endDate, height = 280, groupBy = 'day', highlights, exporting = false, fitWidth }) {
   const [hovered, setHovered] = useState(null);
   const start = startDate ? parseISO(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
   const end = endDate ? parseISO(endDate) : new Date();
@@ -109,6 +110,21 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
       stats: boxStats(valuesByBucket[bucket.key] || []),
     }));
   }, [data, dataKey, groupBy, startDate, endDate]);
+
+  // Types de séance mis en évidence, regroupés par colonne : en vue par jour une
+  // bande derrière la colonne, en vue semaine / mois le nombre de jours concernés.
+  const highlightsByBucket = useMemo(() => {
+    const out = {};
+    Object.entries(highlights?.days || {}).forEach(([day, list]) => {
+      const byType = (out[bucketKeyOf(groupBy, day)] = out[bucketKeyOf(groupBy, day)] || {});
+      list.forEach(h => {
+        const cur = byType[h.key] || { ...h, days: 0 };
+        cur.days += 1;
+        byType[h.key] = cur;
+      });
+    });
+    return Object.fromEntries(Object.entries(out).map(([key, byType]) => [key, Object.values(byType)]));
+  }, [highlights, groupBy]);
 
   // À l'export, les colonnes sont réparties sur toute la largeur de l'image
   const layout = LAYOUT[groupBy] || LAYOUT.day;
@@ -129,7 +145,7 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
   return (
     <Card className={exporting ? 'border-0 shadow-none bg-white' : 'shadow-sm border-0'}>
       <CardHeader className={exporting ? 'p-2 pb-1' : 'pb-2'}>
-        <CardTitle className={exporting ? 'text-xl font-semibold text-slate-900' : 'text-base font-semibold'}>{title}</CardTitle>
+        <CardTitle className={exporting ? 'text-base font-semibold text-slate-900' : 'text-base font-semibold'}>{title}</CardTitle>
       </CardHeader>
       <CardContent className={exporting ? 'p-0' : undefined}>
         {!hasData ? (
@@ -143,7 +159,7 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
                 {[0, 25, 50, 75, 100].map(v => (
                   <g key={v}>
                     <line x1={PAD_LEFT} x2={totalWidth - PAD_RIGHT} y1={valueToY(v)} y2={valueToY(v)} stroke="#e2e8f0" strokeDasharray="3 3" />
-                    <text x={2} y={valueToY(v) + 4} fontSize={13} fill={AXIS_TEXT_COLOR}>{v}</text>
+                    <text x={2} y={valueToY(v) + 4} fontSize={13} fontWeight={600} fill={AXIS_TEXT_COLOR}>{v}</text>
                   </g>
                 ))}
 
@@ -154,6 +170,15 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
                   const labelText = c.partial ? `${c.label} (partiel)` : c.label;
                   return (
                     <g key={c.key} onMouseEnter={() => setHovered(s ? i : null)}>
+                      {groupBy === 'day' && (highlightsByBucket[c.key] || []).map((h, k, list) => (
+                        <rect key={h.key} x={cx - slot * BAND_RATIO / 2 + k * slot * BAND_RATIO / list.length} y={PAD_TOP} width={slot * BAND_RATIO / list.length} height={usableHeight} fill={h.color} fillOpacity={bandOpacity(h)} />
+                      ))}
+                      {groupBy !== 'day' && (highlightsByBucket[c.key] || []).map((h, k, list) => (
+                        <g key={h.key}>
+                          <circle cx={cx + (k - (list.length - 1) / 2) * 20} cy={PAD_TOP + 2} r={8} fill={h.color} />
+                          <text x={cx + (k - (list.length - 1) / 2) * 20} y={PAD_TOP + 6} fontSize={11} fontWeight={700} textAnchor="middle" fill="#fff">{h.days}</text>
+                        </g>
+                      ))}
                       {hovered === i && (
                         <rect x={cx - slot / 2} y={PAD_TOP} width={slot} height={usableHeight} fill="#f1f5f9" />
                       )}
@@ -191,14 +216,15 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
                       {/* Zone de survol sur toute la hauteur de la colonne */}
                       <rect x={cx - slot / 2} y={PAD_TOP} width={slot} height={usableHeight} fill="transparent" />
                       {s && (
-                        <text x={cx} y={axisY + 14} fontSize={slot < 34 ? 9 : 12} textAnchor="middle" fill={faint ? '#d97706' : '#475569'}>
-                          n={s.count}
+                        <text x={cx} y={axisY + 14} fontSize={slot < 34 ? 10 : 12} textAnchor="middle" fill={faint ? '#d97706' : '#475569'}>
+                          {slot < 26 ? s.count : `n=${s.count}`}
                         </text>
                       )}
                       {i % labelEvery === 0 && <text
                         x={cx}
                         y={axisY + 28}
                         fontSize={12}
+                        fontWeight={600}
                         fill={c.partial ? '#d97706' : AXIS_TEXT_COLOR}
                         textAnchor="end"
                         transform={`rotate(-45 ${cx} ${axisY + 28})`}
@@ -213,6 +239,8 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
               {hoveredColumn?.stats && (
                 <BoxTooltip
                   column={hoveredColumn}
+                  highlights={highlightsByBucket[hoveredColumn.key]}
+                  groupBy={groupBy}
                   left={PAD_LEFT + hovered * slot + slot / 2}
                   alignRight={hovered > columns.length / 2}
                 />
@@ -220,12 +248,13 @@ export default function BoxPlotChart({ data, dataKey, title, color = '#3b82f6', 
             </div>
           </div>
         )}
+        {hasData && <HighlightLegend types={highlights?.types} />}
       </CardContent>
     </Card>
   );
 }
 
-function BoxTooltip({ column, left, alignRight }) {
+function BoxTooltip({ column, highlights, groupBy, left, alignRight }) {
   const s = column.stats;
   const rows = [
     ['Maximum', s.max],
@@ -262,6 +291,15 @@ function BoxTooltip({ column, left, alignRight }) {
           )}
         </tbody>
       </table>
+      {highlights?.length > 0 && (
+        <div className="mt-1 pt-1 border-t border-slate-100 space-y-0.5">
+          {highlights.map(h => (
+            <p key={h.key} className="font-medium whitespace-nowrap" style={{ color: h.color }}>
+              {groupBy === 'day' ? highlightText(h) : `${h.label} : ${h.days} jour${h.days > 1 ? 's' : ''}`}
+            </p>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

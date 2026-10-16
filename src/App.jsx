@@ -17,6 +17,7 @@ import CoachHomeIndividualPage from './pages/CoachHomeIndividual';
 import CoachDailyQuestionnairePage from './pages/CoachDailyQuestionnaire';
 import CoachFillAthleteQuestionnairePage from './pages/CoachFillAthleteQuestionnaire';
 import CoachDailyResponsesPage from './pages/CoachDailyResponses';
+import MedicalPage from './pages/MedicalPage';
 import OnboardingPage from './pages/Onboarding';
 import PendingApprovalPage from './pages/PendingApproval';
 import LoginPage from './pages/LoginPage';
@@ -105,6 +106,7 @@ const AppRouter = () => {
       <Route path="/CoachDailyQuestionnaire" element={<LayoutWrapper currentPageName="CoachDailyQuestionnaire"><CoachDailyQuestionnairePage /></LayoutWrapper>} />
       <Route path="/CoachFillAthleteQuestionnaire" element={<LayoutWrapper currentPageName="CoachFillAthleteQuestionnaire"><CoachFillAthleteQuestionnairePage /></LayoutWrapper>} />
       <Route path="/CoachDailyResponses" element={<LayoutWrapper currentPageName="CoachDailyResponses"><CoachDailyResponsesPage /></LayoutWrapper>} />
+      <Route path="/Medical"            element={<LayoutWrapper currentPageName="Medical"><MedicalPage /></LayoutWrapper>} />
       <Route path="/JoinClub"           element={<JoinClubPage />} />
       <Route path="/StravaCallback"     element={<StravaCallbackPage />} />
       <Route path="*"                   element={<PageNotFound />} />

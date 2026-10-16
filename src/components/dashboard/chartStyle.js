@@ -1,5 +1,5 @@
 // Style commun des graphiques du dashboard : graduations et légendes lisibles
-// (en noir, taille augmentée) pour pouvoir être reprises telles quelles dans
+// (en noir, semi-gras, taille augmentée) pour pouvoir être reprises telles quelles dans
 // un diaporama. Sur téléphone, tailles réduites et moins de dates sur l'axe X
 // pour laisser la place au graphique.
 const AXIS_TEXT_COLOR = '#0f172a';
@@ -9,11 +9,11 @@ export function getChartStyle(isMobile) {
   const fontSize = isMobile ? 11 : 13;
   return {
     fontSize,
-    axisTick: { fill: AXIS_TEXT_COLOR, fontSize },
+    axisTick: { fill: AXIS_TEXT_COLOR, fontSize, fontWeight: 600 },
     axisLineColor: AXIS_LINE_COLOR,
     // Hauteur réservée aux dates inclinées à -45°
     xAxisHeight: isMobile ? 56 : 84,
-    legendStyle: { fontSize, lineHeight: `${fontSize + 8}px`, color: AXIS_TEXT_COLOR },
+    legendStyle: { fontSize, fontWeight: 600, lineHeight: `${fontSize + 8}px`, color: AXIS_TEXT_COLOR },
   };
 }
 
