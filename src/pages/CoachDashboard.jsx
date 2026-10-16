@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase as base44 } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -227,22 +227,32 @@ export default function CoachDashboard() {
     enabled: !!user && (isCoach || isAdmin),
   });
 
+  // Athlètes dont on charge les saisies : uniquement ceux sélectionnés (rien
+  // n'est affiché sans sélection), restreints au groupe/club pour un coach.
+  // Le filtrage est fait par Supabase, sur tout l'historique de ces athlètes.
+  const fetchedAthleteEmails = useMemo(() => {
+    if (isAdmin) return [...selectedAthleteEmails].sort();
+    if (!isCoach) return [];
+    const individual = localStorage.getItem('coachView') === 'individual';
+    const pool = new Set([
+      ...(coachGroup?.athlete_emails || []),
+      ...(!individual && coachClub ? coachClub.athlete_emails || [] : []),
+    ]);
+    return selectedAthleteEmails.filter(e => pool.has(e)).sort();
+  }, [isAdmin, isCoach, selectedAthleteEmails, coachGroup, coachClub]);
+
   const { data: realLogs = [], isLoading, refetch } = useQuery({
-    queryKey: ['questionnaire-responses-coach', user?.email, coachGroup?.id, coachClub?.id, assignedTemplates.map(t => t.id).join(',')],
+    queryKey: ['questionnaire-responses-coach', user?.email, fetchedAthleteEmails.join(','), assignedTemplates.map(t => t.id).join(',')],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       let filteredResponses;
-      if (isAdmin) {
-        const allResponses = await base44.entities.QuestionnaireResponse.list('-submitted_date', 2000);
-        const templateIds = assignedTemplates.map(t => t.id);
-        filteredResponses = templateIds.length > 0 ? allResponses.filter(r => templateIds.includes(r.template_id)) : allResponses;
-      } else if (isCoach) {
-        const allResponses = await base44.entities.QuestionnaireResponse.list('-submitted_date', 1000);
-        let coachAthleteEmails = [...(coachGroup?.athlete_emails || [])];
-        if (!isIndividualView && coachClub) {
-          coachAthleteEmails = [...new Set([...coachAthleteEmails, ...(coachClub.athlete_emails || [])])];
+      if (isAdmin || isCoach) {
+        if (fetchedAthleteEmails.length === 0) return [];
+        filteredResponses = await base44.entities.QuestionnaireResponse.filterIn('athlete_email', fetchedAthleteEmails, '-submitted_date');
+        if (isAdmin) {
+          const templateIds = assignedTemplates.map(t => t.id);
+          if (templateIds.length > 0) filteredResponses = filteredResponses.filter(r => templateIds.includes(r.template_id));
         }
-        if (coachAthleteEmails.length === 0) return [];
-        filteredResponses = allResponses.filter(r => coachAthleteEmails.includes(r.athlete_email));
       } else {
         return [];
       }
@@ -296,20 +306,11 @@ export default function CoachDashboard() {
   });
 
   const { data: rawTrainingLogs = [] } = useQuery({
-    queryKey: ['training-logs-coach-dashboard', user?.email, coachGroup?.id, coachClub?.id],
+    queryKey: ['training-logs-coach-dashboard', user?.email, fetchedAthleteEmails.join(',')],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
-      if (isAdmin) {
-        return await base44.entities.TrainingLog.list('-training_date', 2000);
-      } else if (isCoach) {
-        let coachAthleteEmails = [...(coachGroup?.athlete_emails || [])];
-        if (!isIndividualView && coachClub) {
-          coachAthleteEmails = [...new Set([...coachAthleteEmails, ...(coachClub.athlete_emails || [])])];
-        }
-        if (coachAthleteEmails.length === 0) return [];
-        const all = await base44.entities.TrainingLog.list('-training_date', 2000);
-        return all.filter(l => coachAthleteEmails.includes(l.athlete_email));
-      }
-      return [];
+      if (fetchedAthleteEmails.length === 0) return [];
+      return await base44.entities.TrainingLog.filterIn('athlete_email', fetchedAthleteEmails, '-training_date');
     },
     enabled: !!user && (isAdmin || isCoach),
   });
