@@ -8,48 +8,55 @@
 export const PAIN_INTENSITY_DEFAULT = 5;
 export const PAIN_INTENSITY_MAX = 10;
 
-// Formes dans un repère 200 × 360 (une silhouette par vue)
+// Formes dans un repère 240 × 480 (une silhouette par vue). Les zones sont
+// décrites pour le côté gauche du schéma ; l'autre côté est leur symétrique.
+// `rot` : inclinaison de l'ellipse en degrés (bras écartés du corps).
+const VIEW_W = 240;
+const mirror = (shape) => ({ ...shape, cx: VIEW_W - shape.cx, rot: shape.rot ? -shape.rot : 0 });
+
+// [base de l'id, localisation, libellé, forme côté gauche du schéma]
+const FRONT_PAIRS = [
+  ['epaule', 'epaule', 'Épaule', { cx: 75, cy: 111, rx: 13, ry: 14 }],
+  ['bras', 'bras', 'Bras', { cx: 65, cy: 145, rx: 9, ry: 22, rot: 12 }],
+  ['coude', 'coude', 'Coude', { cx: 59, cy: 173, rx: 9, ry: 9 }],
+  ['avant_bras', 'avant_bras', 'Avant-bras', { cx: 52, cy: 204, rx: 8, ry: 20, rot: 14 }],
+  ['poignet', 'poignet', 'Poignet', { cx: 46, cy: 233, rx: 7, ry: 6 }],
+  ['main', 'main', 'Main', { cx: 40, cy: 258, rx: 10, ry: 17, rot: 12 }],
+  ['aine', 'adducteurs', 'Aine / adducteurs', { cx: 107, cy: 232, rx: 11, ry: 9 }],
+  ['quadriceps', 'quadriceps', 'Quadriceps', { cx: 96, cy: 270, rx: 15, ry: 32 }],
+  ['genou', 'genou', 'Genou', { cx: 96, cy: 312, rx: 11, ry: 10 }],
+  ['tibia', 'tibia', 'Tibia', { cx: 96, cy: 357, rx: 9, ry: 32 }],
+  ['cheville', 'cheville', 'Cheville', { cx: 98, cy: 414, rx: 8, ry: 7 }],
+  ['pied', 'pied', 'Pied', { cx: 97, cy: 442, rx: 12, ry: 12 }],
+];
+const BACK_PAIRS = [
+  ['fessier', 'hanche', 'Fessier / hanche', { cx: 102, cy: 232, rx: 18, ry: 17 }],
+  ['ischios', 'ischios', 'Ischio-jambiers', { cx: 96, cy: 276, rx: 14, ry: 30 }],
+  ['mollet', 'mollet', 'Mollet', { cx: 95, cy: 352, rx: 12, ry: 30 }],
+  ['achille', 'tendon_achille', "Tendon d'Achille", { cx: 99, cy: 408, rx: 5, ry: 11 }],
+];
+
+// De face, la gauche de l'athlète est à droite du schéma ; de dos, à gauche
+function pairs(list, view) {
+  const [leftSide, rightSide] = view === 'front' ? ['d', 'g'] : ['g', 'd'];
+  const sideName = { g: 'gauche', d: 'droit' };
+  return list.flatMap(([base, location, label, shape]) => [
+    { id: `${base}_${leftSide}`, view, location, side: sideName[leftSide], label, shape },
+    { id: `${base}_${rightSide}`, view, location, side: sideName[rightSide], label, shape: mirror(shape) },
+  ]);
+}
+
 export const PAIN_ZONES = [
-  // Face
-  { id: 'tete', view: 'front', location: 'tete', side: 'na', label: 'Tête', shape: { cx: 100, cy: 40, r: 25 } },
-  { id: 'epaule_d', view: 'front', location: 'epaule', side: 'droit', label: 'Épaule', shape: { cx: 70, cy: 85, r: 12 } },
-  { id: 'epaule_g', view: 'front', location: 'epaule', side: 'gauche', label: 'Épaule', shape: { cx: 130, cy: 85, r: 12 } },
-  { id: 'bras_d', view: 'front', location: 'bras', side: 'droit', label: 'Bras', shape: { x: 50, y: 95, width: 15, height: 55, rx: 7 } },
-  { id: 'bras_g', view: 'front', location: 'bras', side: 'gauche', label: 'Bras', shape: { x: 135, y: 95, width: 15, height: 55, rx: 7 } },
-  { id: 'coude_d', view: 'front', location: 'coude', side: 'droit', label: 'Coude', shape: { cx: 57, cy: 155, r: 10 } },
-  { id: 'coude_g', view: 'front', location: 'coude', side: 'gauche', label: 'Coude', shape: { cx: 143, cy: 155, r: 10 } },
-  { id: 'avant_bras_d', view: 'front', location: 'avant_bras', side: 'droit', label: 'Avant-bras', shape: { x: 50, y: 163, width: 14, height: 36, rx: 7 } },
-  { id: 'avant_bras_g', view: 'front', location: 'avant_bras', side: 'gauche', label: 'Avant-bras', shape: { x: 136, y: 163, width: 14, height: 36, rx: 7 } },
-  { id: 'poignet_d', view: 'front', location: 'poignet', side: 'droit', label: 'Poignet', shape: { cx: 57, cy: 205, r: 7 } },
-  { id: 'poignet_g', view: 'front', location: 'poignet', side: 'gauche', label: 'Poignet', shape: { cx: 143, cy: 205, r: 7 } },
-  { id: 'main_d', view: 'front', location: 'main', side: 'droit', label: 'Main', shape: { cx: 57, cy: 222, rx: 8, ry: 10 } },
-  { id: 'main_g', view: 'front', location: 'main', side: 'gauche', label: 'Main', shape: { cx: 143, cy: 222, rx: 8, ry: 10 } },
-  { id: 'thorax', view: 'front', location: 'thorax', side: 'na', label: 'Thorax / côtes', shape: { cx: 100, cy: 105, rx: 30, ry: 25 } },
-  { id: 'abdomen', view: 'front', location: 'abdomen', side: 'na', label: 'Abdomen', shape: { cx: 100, cy: 150, rx: 28, ry: 20 } },
-  { id: 'aine_d', view: 'front', location: 'adducteurs', side: 'droit', label: 'Aine / adducteurs', shape: { x: 72, y: 172, width: 27, height: 16, rx: 6 } },
-  { id: 'aine_g', view: 'front', location: 'adducteurs', side: 'gauche', label: 'Aine / adducteurs', shape: { x: 101, y: 172, width: 27, height: 16, rx: 6 } },
-  { id: 'quadriceps_d', view: 'front', location: 'quadriceps', side: 'droit', label: 'Quadriceps', shape: { x: 70, y: 191, width: 20, height: 46, rx: 8 } },
-  { id: 'quadriceps_g', view: 'front', location: 'quadriceps', side: 'gauche', label: 'Quadriceps', shape: { x: 110, y: 191, width: 20, height: 46, rx: 8 } },
-  { id: 'genou_d', view: 'front', location: 'genou', side: 'droit', label: 'Genou', shape: { cx: 80, cy: 249, r: 11 } },
-  { id: 'genou_g', view: 'front', location: 'genou', side: 'gauche', label: 'Genou', shape: { cx: 120, cy: 249, r: 11 } },
-  { id: 'tibia_d', view: 'front', location: 'tibia', side: 'droit', label: 'Tibia', shape: { x: 73, y: 262, width: 14, height: 42, rx: 7 } },
-  { id: 'tibia_g', view: 'front', location: 'tibia', side: 'gauche', label: 'Tibia', shape: { x: 113, y: 262, width: 14, height: 42, rx: 7 } },
-  { id: 'cheville_d', view: 'front', location: 'cheville', side: 'droit', label: 'Cheville', shape: { cx: 80, cy: 314, r: 8 } },
-  { id: 'cheville_g', view: 'front', location: 'cheville', side: 'gauche', label: 'Cheville', shape: { cx: 120, cy: 314, r: 8 } },
-  { id: 'pied_d', view: 'front', location: 'pied', side: 'droit', label: 'Pied', shape: { cx: 80, cy: 336, rx: 11, ry: 15 } },
-  { id: 'pied_g', view: 'front', location: 'pied', side: 'gauche', label: 'Pied', shape: { cx: 120, cy: 336, rx: 11, ry: 15 } },
-  // Dos
-  { id: 'nuque', view: 'back', location: 'cou', side: 'na', label: 'Nuque / cou', shape: { x: 90, y: 62, width: 20, height: 14, rx: 4 } },
-  { id: 'haut_dos', view: 'back', location: 'dos', side: 'na', label: 'Haut du dos', shape: { cx: 100, cy: 105, rx: 30, ry: 25 } },
-  { id: 'lombaires', view: 'back', location: 'dos', side: 'na', label: 'Lombaires', shape: { cx: 100, cy: 150, rx: 28, ry: 20 } },
-  { id: 'fessier_g', view: 'back', location: 'hanche', side: 'gauche', label: 'Fessier / hanche', shape: { x: 71, y: 170, width: 28, height: 22, rx: 8 } },
-  { id: 'fessier_d', view: 'back', location: 'hanche', side: 'droit', label: 'Fessier / hanche', shape: { x: 101, y: 170, width: 28, height: 22, rx: 8 } },
-  { id: 'ischios_g', view: 'back', location: 'ischios', side: 'gauche', label: 'Ischio-jambiers', shape: { x: 70, y: 195, width: 20, height: 46, rx: 8 } },
-  { id: 'ischios_d', view: 'back', location: 'ischios', side: 'droit', label: 'Ischio-jambiers', shape: { x: 110, y: 195, width: 20, height: 46, rx: 8 } },
-  { id: 'mollet_g', view: 'back', location: 'mollet', side: 'gauche', label: 'Mollet', shape: { x: 72, y: 256, width: 16, height: 46, rx: 8 } },
-  { id: 'mollet_d', view: 'back', location: 'mollet', side: 'droit', label: 'Mollet', shape: { x: 112, y: 256, width: 16, height: 46, rx: 8 } },
-  { id: 'achille_g', view: 'back', location: 'tendon_achille', side: 'gauche', label: "Tendon d'Achille", shape: { x: 75, y: 305, width: 10, height: 16, rx: 4 } },
-  { id: 'achille_d', view: 'back', location: 'tendon_achille', side: 'droit', label: "Tendon d'Achille", shape: { x: 115, y: 305, width: 10, height: 16, rx: 4 } },
+  // Devant
+  { id: 'tete', view: 'front', location: 'tete', side: 'na', label: 'Tête', shape: { cx: 120, cy: 46, rx: 22, ry: 27 } },
+  { id: 'thorax', view: 'front', location: 'thorax', side: 'na', label: 'Thorax / côtes', shape: { cx: 120, cy: 136, rx: 34, ry: 26 } },
+  { id: 'abdomen', view: 'front', location: 'abdomen', side: 'na', label: 'Abdomen', shape: { cx: 120, cy: 188, rx: 30, ry: 24 } },
+  ...pairs(FRONT_PAIRS, 'front'),
+  // Derrière
+  { id: 'nuque', view: 'back', location: 'cou', side: 'na', label: 'Nuque / cou', shape: { cx: 120, cy: 82, rx: 11, ry: 9 } },
+  { id: 'haut_dos', view: 'back', location: 'dos', side: 'na', label: 'Haut du dos', shape: { cx: 120, cy: 136, rx: 36, ry: 28 } },
+  { id: 'lombaires', view: 'back', location: 'dos', side: 'na', label: 'Lombaires', shape: { cx: 120, cy: 193, rx: 28, ry: 20 } },
+  ...pairs(BACK_PAIRS, 'back'),
 ];
 
 // Zones de l'ancien questionnaire de séance (training_logs.douleurs_zones, valeurs true)
