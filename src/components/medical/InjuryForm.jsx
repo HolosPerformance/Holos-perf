@@ -45,12 +45,13 @@ function OptionSelect({ label, value, onChange, options, placeholder = 'Choisir�
  * En création, le statut initial est demandé ; en édition, le statut se change
  * depuis la frise de la fiche (pour garder l'historique cohérent).
  */
-export default function InjuryForm({ open, onOpenChange, injury, athleteName, onSubmit, saving }) {
+export default function InjuryForm({ open, onOpenChange, injury, prefill, athleteName, onSubmit, saving }) {
   const isEdit = !!injury;
+  // `prefill` : champs déjà connus en création (ex. zone d'une douleur signalée)
   const [form, setForm] = useState(() => (
     injury
       ? Object.fromEntries(Object.keys(EMPTY).map(k => [k, injury[k] ?? EMPTY[k]]))
-      : { ...EMPTY, injury_date: todayISO() }
+      : { ...EMPTY, injury_date: todayISO(), ...prefill }
   ));
   const set = (key) => (value) => setForm(f => ({ ...f, [key]: value }));
 

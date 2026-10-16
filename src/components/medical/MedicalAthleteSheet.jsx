@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { User, Plus, Edit2, CheckCircle2, Trash2, CalendarDays, Clock } from 'lucide-react';
 import StatusBadge from './StatusBadge';
+import MarkerHistoryChart, { chartWindow, CHART_WEEKS_BEFORE } from './MarkerHistoryChart';
 import {
   INJURY_STATUSES, INJURY_TYPES, BODY_LOCATIONS, SIDES, SEVERITIES, CONTEXTS,
   labelOf, formatDate, daysBetween, todayISO,
 } from '@/lib/medical';
+import { questionnaireDay } from '@/lib/questionnaireDay';
 
 const ageFrom = (birthDate) => {
   if (!birthDate) return null;
@@ -77,6 +79,19 @@ function StatusTimeline({ history }) {
   );
 }
 
+// Marqueurs des questionnaires sur la fenêtre d'une blessure (ou les 4 dernières semaines)
+function InjuryMarkers({ injury, markerData, loading, focusMarker }) {
+  if (loading) return <p className="text-sm text-slate-400">Chargement des questionnaires…</p>;
+  if (!markerData) return null;
+  const { start, end } = chartWindow(injury, questionnaireDay());
+  return (
+    <MarkerHistoryChart
+      athleteSeries={markerData.series} markers={markerData.markers} pains={markerData.pains}
+      start={start} end={end} injury={injury} focusMarker={focusMarker}
+    />
+  );
+}
+
 /**
  * Fiche médicale d'un athlète : infos joueur, blessure en cours avec ses
  * changements de statut, et historique des blessures clôturées.
@@ -84,11 +99,14 @@ function StatusTimeline({ history }) {
 export default function MedicalAthleteSheet({
   open, onOpenChange, athlete, injuries,
   onNewInjury, onEditInjury, onChangeStatus, onCloseInjury, onDeleteInjury, saving,
+  markerData, loadingMarkers, focusMarker,
 }) {
   const [statusDate, setStatusDate] = useState(todayISO());
   const [statusNote, setStatusNote] = useState('');
   const [closeDate, setCloseDate] = useState(todayISO());
   const [confirmClose, setConfirmClose] = useState(false);
+  // Blessures passées dépliées (graphiques dessinés seulement une fois visibles)
+  const [openPast, setOpenPast] = useState({});
 
   if (!athlete) return null;
   const profile = athlete.profile || {};
@@ -209,9 +227,26 @@ export default function MedicalAthleteSheet({
                 <p className="text-sm font-semibold text-slate-700 mb-3">Évolution du statut</p>
                 <StatusTimeline history={current.status_history} />
               </div>
+
+              <div className="border-t pt-4">
+                <p className="text-sm font-semibold text-slate-700 mb-1">Marqueurs autour de la blessure</p>
+                <p className="text-xs text-slate-500 mb-3">{CHART_WEEKS_BEFORE} semaines avant la blessure jusqu'à aujourd'hui.</p>
+                <InjuryMarkers injury={current} markerData={markerData} loading={loadingMarkers} focusMarker={focusMarker} />
+              </div>
             </div>
           )}
         </section>
+
+        {/* Marqueurs récents (sans blessure en cours) */}
+        {!current && (
+          <section className="space-y-3">
+            <div>
+              <h3 className="font-semibold text-slate-800">Marqueurs des questionnaires</h3>
+              <p className="text-xs text-slate-500">{CHART_WEEKS_BEFORE} dernières semaines, comparées aux 28 jours précédents.</p>
+            </div>
+            <InjuryMarkers injury={null} markerData={markerData} loading={loadingMarkers} focusMarker={focusMarker} />
+          </section>
+        )}
 
         {/* Historique */}
         <section className="space-y-3">
@@ -221,7 +256,8 @@ export default function MedicalAthleteSheet({
           ) : (
             <div className="space-y-2">
               {past.map(inj => (
-                <details key={inj.id} className="rounded-lg border border-slate-200 p-3 group">
+                <details key={inj.id} className="rounded-lg border border-slate-200 p-3 group"
+                  onToggle={e => { const isOpen = e.currentTarget.open; setOpenPast(o => ({ ...o, [inj.id]: isOpen })); }}>
                   <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium text-slate-800">{injuryTitle(inj)}</span>
                     <span className="flex items-center gap-3 text-xs text-slate-500">
@@ -234,6 +270,10 @@ export default function MedicalAthleteSheet({
                   <div className="pt-3 space-y-4">
                     <InjuryDetails injury={inj} />
                     <StatusTimeline history={inj.status_history} />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700 mb-3">Marqueurs autour de la blessure</p>
+                      {openPast[inj.id] && <InjuryMarkers injury={inj} markerData={markerData} loading={loadingMarkers} />}
+                    </div>
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => onEditInjury(inj)}>
                         <Edit2 className="w-4 h-4 mr-1" /> Modifier

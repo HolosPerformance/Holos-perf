@@ -6,11 +6,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Activity, HeartPulse, Search, User, ChevronRight, Check } from 'lucide-react';
+import { Activity, HeartPulse, Search, User, ChevronRight, Check, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/medical/StatusBadge';
 import InjuryForm from '@/components/medical/InjuryForm';
 import MedicalAthleteSheet from '@/components/medical/MedicalAthleteSheet';
+import MarkerTrendsTable from '@/components/medical/MarkerTrendsTable';
+import PainReports from '@/components/medical/PainReports';
+import { extractMarkerData, athleteTrends, shiftDay, TRENDS_LOOKBACK_DAYS } from '@/lib/markerTrends';
+import { questionnaireDay } from '@/lib/questionnaireDay';
 import {
   INJURY_STATUSES, AVAILABLE_STATUS, INJURY_TYPES, BODY_LOCATIONS,
   labelOf, formatDate, daysBetween,
@@ -30,7 +34,10 @@ export default function MedicalPage() {
   const [scopeFilter, setScopeFilter] = useState('all'); // 'all' | club:<id> | group:<id>
   const [excludedTeamIds, setExcludedTeamIds] = useState([]); // équipes décochées (aucune = toutes)
   const [selectedEmail, setSelectedEmail] = useState(null);
-  const [formState, setFormState] = useState(null); // { injury?: object }
+  const [formState, setFormState] = useState(null); // { injury?: object, prefill?: object }
+  const [tab, setTab] = useState('list'); // 'list' | 'markers'
+  const [focusMarker, setFocusMarker] = useState(null); // marqueur affiché à l'ouverture de la fiche
+  const today = questionnaireDay();
 
   // ─── Périmètre : clubs, équipes et groupes (tous pour l'admin, encadrés pour un coach) ──
   const { data: scopes = { clubs: [], teams: [], groups: [] } } = useQuery({
@@ -110,6 +117,12 @@ export default function MedicalPage() {
     enabled: isStaff,
   });
 
+  const { data: templates = [] } = useQuery({
+    queryKey: ['medical-templates'],
+    queryFn: () => base44.entities.QuestionnaireTemplate.list(),
+    enabled: isStaff,
+  });
+
   // ─── Athlètes visibles ────────────────────────────────────────────────────────
   const athletes = useMemo(() => {
     const usersByEmail = new Map(users.map(u => [u.email, u]));
@@ -131,6 +144,60 @@ export default function MedicalPage() {
       };
     }).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   }, [users, athleteProfiles, injuries, scopes, isAdmin]);
+
+  // ─── Questionnaires récents de tous les athlètes visibles (suivi des marqueurs, douleurs) ──
+  const athleteEmailsKey = athletes.map(a => a.email).sort().join(',');
+  const { data: recentRaw, isLoading: loadingRecent } = useQuery({
+    queryKey: ['medical-recent-questionnaires', athleteEmailsKey, today],
+    queryFn: async () => {
+      const emails = athleteEmailsKey.split(',');
+      const from = shiftDay(today, -TRENDS_LOOKBACK_DAYS);
+      const [responses, trainingLogs] = await Promise.all([
+        base44.entities.QuestionnaireResponse.filterIn('athlete_email', emails, '-submitted_date', { column: 'submitted_date', from }),
+        base44.entities.TrainingLog.filterIn('athlete_email', emails, '-training_date', { column: 'training_date', from }),
+      ]);
+      return { responses, trainingLogs };
+    },
+    enabled: isStaff && athletes.length > 0,
+  });
+  const recentData = useMemo(
+    () => extractMarkerData({ ...(recentRaw || {}), templates }),
+    [recentRaw, templates]
+  );
+  const trends = useMemo(() => {
+    const out = {};
+    for (const a of athletes) out[a.email] = athleteTrends(recentData.series.get(a.email), recentData.markers, today);
+    return out;
+  }, [athletes, recentData, today]);
+
+  // Historique complet de l'athlète ouvert (graphiques de la fiche)
+  const { data: selectedRaw, isLoading: loadingSelected } = useQuery({
+    queryKey: ['medical-athlete-questionnaires', selectedEmail],
+    queryFn: async () => {
+      const [responses, trainingLogs] = await Promise.all([
+        base44.entities.QuestionnaireResponse.filterIn('athlete_email', [selectedEmail], '-submitted_date'),
+        base44.entities.TrainingLog.filterIn('athlete_email', [selectedEmail], '-training_date'),
+      ]);
+      return { responses, trainingLogs };
+    },
+    enabled: isStaff && !!selectedEmail,
+  });
+  const selectedMarkerData = useMemo(
+    () => (selectedRaw ? extractMarkerData({ ...selectedRaw, templates }) : null),
+    [selectedRaw, templates]
+  );
+
+  const openSheet = (email, markerKey = null) => { setFocusMarker(markerKey); setSelectedEmail(email); };
+  const createFromPain = (email, zone) => {
+    openSheet(email);
+    setFormState({
+      prefill: {
+        body_location: zone.location,
+        side: zone.side,
+        notes: `Douleur signalée par l'athlète : ${zone.fullLabel}${zone.intensity != null ? ` (${zone.intensity}/10)` : ''}`,
+      },
+    });
+  };
 
   // Athlètes du club / groupe / équipes sélectionnés : base des compteurs et de la liste
   // (toutes les équipes cochées : pas de restriction, athlètes sans équipe compris)
@@ -287,7 +354,24 @@ export default function MedicalPage() {
           </div>
         )}
 
-        {/* Liste des athlètes */}
+        <PainReports athletes={scoped} pains={recentData.pains} today={today}
+          onCreate={createFromPain} onOpen={(email) => openSheet(email)} />
+
+        {/* Onglets */}
+        <div className="flex gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+          {[['list', 'Liste médicale'], ['markers', 'Suivi des marqueurs']].map(([value, label]) => (
+            <button key={value} type="button" onClick={() => setTab(value)}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${tab === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'markers' ? (
+          <MarkerTrendsTable athletes={filtered} markers={recentData.markers} trends={trends}
+            loading={loadingRecent} onOpen={openSheet} />
+        ) : (
+        /* Liste des athlètes */
         <Card className="border-0 shadow-sm overflow-hidden">
           <CardContent className="p-0">
             {loadingInjuries ? (
@@ -310,7 +394,7 @@ export default function MedicalPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filtered.map(a => (
-                      <tr key={a.email} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedEmail(a.email)}>
+                      <tr key={a.email} className="hover:bg-slate-50 cursor-pointer" onClick={() => openSheet(a.email)}>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             {a.profile?.photo_url || a.avatar_url ? (
@@ -321,6 +405,12 @@ export default function MedicalPage() {
                               </div>
                             )}
                             <span className="font-medium text-slate-800">{a.name}</span>
+                            {trends[a.email]?.alerts > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-amber-700 text-xs font-semibold"
+                                title="Marqueurs à surveiller (voir « Suivi des marqueurs »)">
+                                <AlertTriangle className="w-3.5 h-3.5" />{trends[a.email].alerts}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3"><StatusBadge status={a.current?.status} /></td>
@@ -339,10 +429,11 @@ export default function MedicalPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       <MedicalAthleteSheet
-        key={selectedEmail || 'none'}
+        key={`${selectedEmail || 'none'}|${focusMarker || ''}`}
         open={!!selected}
         onOpenChange={(o) => { if (!o) setSelectedEmail(null); }}
         athlete={selected}
@@ -353,6 +444,9 @@ export default function MedicalPage() {
         onChangeStatus={handleChangeStatus}
         onCloseInjury={handleCloseInjury}
         onDeleteInjury={handleDeleteInjury}
+        markerData={selectedMarkerData}
+        loadingMarkers={loadingSelected}
+        focusMarker={focusMarker}
       />
 
       {formState && (
@@ -360,6 +454,7 @@ export default function MedicalPage() {
           open
           onOpenChange={(o) => { if (!o) setFormState(null); }}
           injury={formState.injury}
+          prefill={formState.prefill}
           athleteName={selected?.name}
           saving={saveInjury.isPending}
           onSubmit={(payload) => saveInjury.mutate({ id: formState.injury?.id, payload })}
