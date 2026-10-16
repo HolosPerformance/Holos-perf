@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase as base44 } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
+import { useBrandColors } from '@/hooks/useBranding';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -32,32 +33,12 @@ import { fr } from 'date-fns/locale';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-function getBrandColor() {
-  return document.documentElement.style.getPropertyValue('--brand-color') || null;
-}
-
-function getBrandSecondaryColor() {
-  return document.documentElement.style.getPropertyValue('--brand-secondary-color') || null;
-}
-
 export default function AthleteHome() {
   const { user } = useAuth();
   const [athleteFirstName, setAthleteFirstName] = useState(null);
   const [group, setGroup] = useState(null);
-  const [brandColor, setBrandColor] = useState(null);
-  const [brandSecondaryColor, setBrandSecondaryColor] = useState(null);
+  const { primary: brandColor, secondary: brandSecondaryColor } = useBrandColors();
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const color = getBrandColor();
-      const secondary = getBrandSecondaryColor();
-      if (color) setBrandColor(color);
-      if (secondary) setBrandSecondaryColor(secondary);
-      if (color && secondary) clearInterval(interval);
-    }, 300);
-    setTimeout(() => clearInterval(interval), 5000);
-    return () => clearInterval(interval);
-  }, []);
   const [view, setView] = useState('home'); // 'home', 'questionnaire', 'data'
   const [selectedQuestionnaireId, setSelectedQuestionnaireId] = useState(null);
   const [existingResponseId, setExistingResponseId] = useState(null);

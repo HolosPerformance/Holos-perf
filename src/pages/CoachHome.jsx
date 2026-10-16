@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase as base44 } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
+import { useBrandColors } from '@/hooks/useBranding';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,34 +27,13 @@ import CoachCalendar from '../components/calendar/CoachCalendar';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-function getBrandColor() {
-  return document.documentElement.style.getPropertyValue('--brand-color') || null;
-}
-
-function getBrandSecondaryColor() {
-  return document.documentElement.style.getPropertyValue('--brand-secondary-color') || null;
-}
-
 export default function CoachHome() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [group, setGroup] = useState(null);
   const [club, setClub] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
-  const [brandColor, setBrandColor] = useState(null);
-  const [brandSecondaryColor, setBrandSecondaryColor] = useState(null);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const color = getBrandColor();
-      const secondary = getBrandSecondaryColor();
-      if (color) setBrandColor(color);
-      if (secondary) setBrandSecondaryColor(secondary);
-      if (color && secondary) clearInterval(interval);
-    }, 300);
-    setTimeout(() => clearInterval(interval), 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const { primary: brandColor, secondary: brandSecondaryColor } = useBrandColors();
 
   // Persister la vue club dans localStorage
   useEffect(() => {

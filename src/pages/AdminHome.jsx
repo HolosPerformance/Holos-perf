@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase as base44 } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
+import { useBrandColors } from '@/hooks/useBranding';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,34 +26,14 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useQuery } from '@tanstack/react-query';
 
-function getBrandColor() {
-  return document.documentElement.style.getPropertyValue('--brand-color') || null;
-}
-
-function getBrandSecondaryColor() {
-  return document.documentElement.style.getPropertyValue('--brand-secondary-color') || null;
-}
-
 export default function AdminHome() {
   const { user } = useAuth();
-  const [brandColor, setBrandColor] = useState(null);
-  const [brandSecondaryColor, setBrandSecondaryColor] = useState(null);
+  const { secondary: brandSecondaryColor } = useBrandColors();
   const [calendarSelectionMode, setCalendarSelectionMode] = useState('all');
   const [calendarSelectedAthletes, setCalendarSelectedAthletes] = useState([]);
   const [calendarSelectedGroups, setCalendarSelectedGroups] = useState([]);
   const [calendarSelectedClubs, setCalendarSelectedClubs] = useState([]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const color = getBrandColor();
-      const secondary = getBrandSecondaryColor();
-      if (color) setBrandColor(color);
-      if (secondary) setBrandSecondaryColor(secondary);
-      if (color && secondary) clearInterval(interval);
-    }, 300);
-    setTimeout(() => clearInterval(interval), 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   const isCoach = user?.user_status === 'coach' || user?.user_status === 'coach_pro';
   const isAdmin = user?.user_status === 'admin';
