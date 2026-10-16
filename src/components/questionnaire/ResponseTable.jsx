@@ -1,6 +1,6 @@
 import React from 'react';
 import { Badge } from "@/components/ui/badge";
-import { formatPainValue } from '@/lib/painZones';
+import { formatPainValue, painScaleOf } from '@/lib/painZones';
 
 function resolveResponseValue(value, question) {
   if (value === undefined || value === null) return '—';
@@ -18,7 +18,7 @@ function resolveResponseValue(value, question) {
     return `${value}`;
   }
   if (question.type === 'body_pain') {
-    const str = formatPainValue(value);
+    const str = formatPainValue(value, painScaleOf(question));
     return str.length > 40 ? str.slice(0, 38) + '…' : str;
   }
   if (question.type === 'textarea' || question.type === 'text') {

@@ -5,8 +5,25 @@
 // pré-remplir une fiche blessure. Côté = côté de l'athlète : de face, sa
 // gauche est à droite du schéma ; de dos, elle est à gauche.
 
-export const PAIN_INTENSITY_DEFAULT = 5;
-export const PAIN_INTENSITY_MAX = 10;
+// Échelle d'intensité : réglée par question dans scaleOptions { min, max,
+// minLabel, maxLabel } (comme une question « Échelle ») ; 1 à 10 par défaut
+// (questions créées avant ce réglage et ancien questionnaire de séance).
+export const PAIN_SCALE_DEFAULT = { min: 1, max: 10, minLabel: '', maxLabel: '' };
+
+export function painScaleOf(question) {
+  const o = question?.scaleOptions || {};
+  const min = Number.isFinite(Number(o.min)) && o.min !== '' && o.min != null ? Number(o.min) : PAIN_SCALE_DEFAULT.min;
+  const max = Number.isFinite(Number(o.max)) && o.max !== '' && o.max != null ? Number(o.max) : PAIN_SCALE_DEFAULT.max;
+  return max > min
+    ? { min, max, minLabel: o.minLabel || '', maxLabel: o.maxLabel || '' }
+    : { ...PAIN_SCALE_DEFAULT };
+}
+
+// Valeur proposée quand une zone est touchée : le milieu de l'échelle
+export const painScaleMiddle = (scale) => Math.round((scale.min + scale.max) / 2);
+
+// Une zone est cochée si elle a une valeur (0 compris) ou true (ancien format)
+export const isPainZoneOn = (v) => v !== undefined && v !== null && v !== false;
 
 // Zones cliquables : localisation et côté du module médical. Le dessin de
 // chaque zone (silhouettes homme / femme, devant / derrière) est dans
@@ -73,20 +90,24 @@ export function painZoneInfo(id) {
 }
 
 // Zones d'une réponse : [{ id, intensity (null si non précisée), ...painZoneInfo }]
-export function painZonesOf(value) {
+// `scale` : échelle de la question (painScaleOf), recopiée dans chaque zone
+export function painZonesOf(value, scale = PAIN_SCALE_DEFAULT) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
   return Object.entries(value)
-    .filter(([, v]) => v)
+    .filter(([, v]) => isPainZoneOn(v))
     .map(([id, v]) => {
       const info = painZoneInfo(id);
-      return info && { id, intensity: typeof v === 'number' ? v : null, ...info };
+      return info && { id, intensity: typeof v === 'number' ? v : null, scaleMax: scale.max, ...info };
     })
     .filter(Boolean);
 }
 
-// Texte court d'une réponse, ex. « Genou droit (6), Lombaires (3) »
-export function formatPainValue(value) {
-  const zones = painZonesOf(value);
+// Intensité lisible, ex. « 6/10 » ou « 65/100 »
+export const formatPainIntensity = (zone) => (zone.intensity != null ? `${zone.intensity}/${zone.scaleMax ?? PAIN_SCALE_DEFAULT.max}` : null);
+
+// Texte court d'une réponse, ex. « Genou droit (6/10), Lombaires (3/10) »
+export function formatPainValue(value, scale = PAIN_SCALE_DEFAULT) {
+  const zones = painZonesOf(value, scale);
   if (zones.length === 0) return 'Aucune douleur';
-  return zones.map(z => (z.intensity != null ? `${z.fullLabel} (${z.intensity})` : z.fullLabel)).join(', ');
+  return zones.map(z => (z.intensity != null ? `${z.fullLabel} (${formatPainIntensity(z)})` : z.fullLabel)).join(', ');
 }

@@ -102,7 +102,7 @@ export function QuestionTranslations({ question, setQuestion, languages, onAddLa
               />
             </div>
 
-            {question.type === 'scale' && (
+            {(question.type === 'scale' || question.type === 'body_pain') && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-sm">Label min</Label>

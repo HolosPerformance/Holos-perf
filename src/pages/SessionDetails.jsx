@@ -15,7 +15,7 @@ import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { formatPainValue } from '@/lib/painZones';
+import { formatPainValue, painScaleOf } from '@/lib/painZones';
 
 export default function SessionDetails() {
   const { user } = useAuth();
@@ -533,7 +533,7 @@ export default function SessionDetails() {
                               </p>
                               <p className="text-slate-900">
                                 {answer === undefined || answer === null ? 'Non répondu'
-                                  : question.type === 'body_pain' ? formatPainValue(answer) : answer.toString()}
+                                  : question.type === 'body_pain' ? formatPainValue(answer, painScaleOf(question)) : answer.toString()}
                               </p>
                             </div>
                           );

@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Zap } from 'lucide-react';
 import { daysBetweenDays, shiftDay } from '@/lib/markerTrends';
+import { formatPainIntensity } from '@/lib/painZones';
 
 export const PAIN_REPORT_DAYS = 7;
 const VISIBLE = 6;
@@ -26,17 +27,19 @@ export default function PainReports({ athletes, pains, today, onCreate, onOpen }
       if (!athlete || p.day < from || p.day > today) continue;
       for (const zone of p.zones) {
         const key = `${p.email}|${zone.location}|${zone.side}|${zone.label}`;
-        const r = grouped.get(key) || { key, athlete, zone, days: new Set(), lastDay: p.day, maxIntensity: null };
+        // peak : signalement le plus intense (rapporté à son échelle)
+        const r = grouped.get(key) || { key, athlete, zone, days: new Set(), lastDay: p.day, peak: null };
         r.days.add(p.day);
         if (p.day > r.lastDay) r.lastDay = p.day;
-        if (zone.intensity != null) r.maxIntensity = Math.max(r.maxIntensity ?? 0, zone.intensity);
+        const ratio = (z) => z.intensity / (z.scaleMax || 10);
+        if (zone.intensity != null && (!r.peak || ratio(zone) > ratio(r.peak))) r.peak = zone;
         grouped.set(key, r);
       }
     }
     return [...grouped.values()].sort((a, b) =>
       (b.lastDay > a.lastDay ? 1 : b.lastDay < a.lastDay ? -1 : 0)
       || b.days.size - a.days.size
-      || (b.maxIntensity ?? 0) - (a.maxIntensity ?? 0));
+      || (b.peak ? b.peak.intensity / (b.peak.scaleMax || 10) : 0) - (a.peak ? a.peak.intensity / (a.peak.scaleMax || 10) : 0));
   }, [athletes, pains, today]);
 
   if (reports.length === 0) return null;
@@ -59,8 +62,8 @@ export default function PainReports({ athletes, pains, today, onCreate, onOpen }
                   {r.athlete.name}
                 </button>
                 <span className="text-sm text-red-700">{r.zone.fullLabel}</span>
-                {r.maxIntensity != null && (
-                  <span className="text-xs rounded-full bg-red-50 text-red-700 px-2 py-0.5">intensité {r.maxIntensity}/10</span>
+                {r.peak && (
+                  <span className="text-xs rounded-full bg-red-50 text-red-700 px-2 py-0.5">intensité {formatPainIntensity(r.peak)}</span>
                 )}
                 <span className="text-xs text-slate-500">{agoText(daysBetweenDays(r.lastDay, today))}</span>
                 {repeated && (
@@ -72,7 +75,7 @@ export default function PainReports({ athletes, pains, today, onCreate, onOpen }
                   {r.athlete.current ? (
                     <Button size="sm" variant="ghost" onClick={() => onOpen(r.athlete.email)}>Voir la fiche</Button>
                   ) : (
-                    <Button size="sm" variant="outline" onClick={() => onCreate(r.athlete.email, { ...r.zone, intensity: r.maxIntensity })}>
+                    <Button size="sm" variant="outline" onClick={() => onCreate(r.athlete.email, r.peak || r.zone)}>
                       <Plus className="w-3.5 h-3.5 mr-1" /> Créer une fiche
                     </Button>
                   )}

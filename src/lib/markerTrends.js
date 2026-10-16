@@ -18,7 +18,7 @@
 
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { questionnaireDay } from './questionnaireDay';
-import { painZonesOf } from './painZones';
+import { painZonesOf, painScaleOf } from './painZones';
 
 // Réglages (en jours, en saisies, ou en nombre d'écarts habituels)
 export const TREND_SETTINGS = {
@@ -120,7 +120,7 @@ export function extractMarkerData({ responses = [], trainingLogs = [], templates
         register(key, label, q.type === 'scale' ? { min: q.scaleOptions?.min ?? 0, max: q.scaleOptions?.max ?? 100 } : null);
         add(response.athlete_email, key, day, num);
       } else if (q.type === 'body_pain') {
-        const zones = painZonesOf(value);
+        const zones = painZonesOf(value, painScaleOf(q));
         if (zones.length) pains.push({ email: response.athlete_email, day, zones });
       }
     }

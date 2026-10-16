@@ -5,6 +5,7 @@ import {
 import { Check } from 'lucide-react';
 import { analyzeSeries, formatValue, shiftDay } from '@/lib/markerTrends';
 import { formatDate, statusInfo } from '@/lib/medical';
+import { formatPainIntensity } from '@/lib/painZones';
 
 const STATUS_COLORS = {
   blesse: '#ef4444', reeducation: '#f97316', reathletisation: '#eab308', reprise_progressive: '#3b82f6',
@@ -135,7 +136,7 @@ export default function MarkerHistoryChart({ athleteSeries, markers, pains, star
     const map = new Map();
     for (const p of pains || []) {
       if (p.day < start || p.day > end) continue;
-      const text = p.zones.map(z => (z.intensity != null ? `${z.fullLabel} (${z.intensity})` : z.fullLabel)).join(', ');
+      const text = p.zones.map(z => (z.intensity != null ? `${z.fullLabel} (${formatPainIntensity(z)})` : z.fullLabel)).join(', ');
       map.set(p.day, map.has(p.day) ? `${map.get(p.day)}, ${text}` : text);
     }
     return map;

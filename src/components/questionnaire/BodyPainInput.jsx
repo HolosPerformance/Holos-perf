@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { RotateCcw, X } from 'lucide-react';
-import { PAIN_INTENSITY_DEFAULT, PAIN_INTENSITY_MAX, painZoneInfo } from '@/lib/painZones';
+import { PAIN_SCALE_DEFAULT, painScaleMiddle, isPainZoneOn, painZoneInfo } from '@/lib/painZones';
 import { BODY_ART } from './bodyArt';
 
 const SIDE_KEY = { gauche: 'painLeft', droit: 'painRight' };
@@ -15,10 +15,12 @@ const VIEW_ZONE_IDS = Object.fromEntries(['front', 'back'].map(view => [view, ne
 )]));
 const viewsOf = (id) => ['front', 'back'].filter(v => VIEW_ZONE_IDS[v].has(id));
 
-// Couleur d'une intensité : vert (légère) → orange → rouge (très forte)
+// Couleur selon la position sur l'échelle : vert (bas) → orange → rouge (haut)
 const HUE_STOPS = [[1, 120], [3, 90], [5, 38], [7, 18], [10, 0]];
-function intensityColor(v) {
-  const x = Math.min(Math.max(v, 1), PAIN_INTENSITY_MAX);
+const MAX_BUTTONS = 11; // au-delà (ex. 0-100), un curseur remplace les boutons
+function intensityColor(v, scale = PAIN_SCALE_DEFAULT) {
+  const ratio = (Number(v) - scale.min) / (scale.max - scale.min);
+  const x = 1 + 9 * Math.min(Math.max(Number.isFinite(ratio) ? ratio : 0.5, 0), 1);
   const k = HUE_STOPS.findIndex(([n]) => n >= x);
   const [n0, h0] = HUE_STOPS[Math.max(k - 1, 0)];
   const [n1, h1] = HUE_STOPS[k];
@@ -35,7 +37,7 @@ const readStoredSex = () => {
   try { return localStorage.getItem(SEX_STORAGE_KEY) === 'femme' ? 'femme' : 'homme'; } catch { return 'homme'; }
 };
 
-function Body({ art, zones, onToggle }) {
+function Body({ art, zones, onToggle, scale }) {
   const uid = useId().replace(/:/g, '');
   const hit = 'cursor-pointer fill-transparent hover:fill-amber-400/25 transition-colors';
   return (
@@ -50,18 +52,18 @@ function Body({ art, zones, onToggle }) {
       {art.hair.map((d, i) => <path key={`hair-${i}`} d={d} fill={INK} fillOpacity="0.55" stroke={INK} strokeWidth="3" pointerEvents="none" />)}
       {/* Taches de couleur des zones douloureuses */}
       <g filter={`url(#blur-${uid})`} pointerEvents="none">
-        {art.zones.filter(z => zones[z.id]).flatMap(z => z.d.map((d, i) => (
-          <path key={`${z.id}-${i}`} d={d} fill={intensityColor(zones[z.id])} opacity="0.85" />
+        {art.zones.filter(z => isPainZoneOn(zones[z.id])).flatMap(z => z.d.map((d, i) => (
+          <path key={`${z.id}-${i}`} d={d} fill={intensityColor(zones[z.id], scale)} opacity="0.85" />
         )))}
-        {art.joints.filter(j => zones[j.id]).map(j => (
-          <circle key={j.id} cx={j.cx} cy={j.cy} r={j.r} fill={intensityColor(zones[j.id])} opacity="0.9" />
+        {art.joints.filter(j => isPainZoneOn(zones[j.id])).map(j => (
+          <circle key={j.id} cx={j.cx} cy={j.cy} r={j.r} fill={intensityColor(zones[j.id], scale)} opacity="0.9" />
         ))}
       </g>
       {/* Zones cliquables (coudes, poignets… par-dessus les membres) */}
       {art.zones.map(z => {
         const label = painZoneInfo(z.id)?.fullLabel;
         return (
-          <g key={z.id} className={hit} role="button" aria-pressed={!!zones[z.id]} aria-label={label}
+          <g key={z.id} className={hit} role="button" aria-pressed={isPainZoneOn(zones[z.id])} aria-label={label}
             onClick={() => onToggle(z.id)}>
             <title>{label}</title>
             {z.d.map((d, i) => <path key={i} d={d} />)}
@@ -71,7 +73,7 @@ function Body({ art, zones, onToggle }) {
       {art.joints.map(j => {
         const label = painZoneInfo(j.id)?.fullLabel;
         return (
-          <circle key={j.id} cx={j.cx} cy={j.cy} r={j.r} className={hit} role="button" aria-pressed={!!zones[j.id]} aria-label={label}
+          <circle key={j.id} cx={j.cx} cy={j.cy} r={j.r} className={hit} role="button" aria-pressed={isPainZoneOn(zones[j.id])} aria-label={label}
             onClick={() => onToggle(j.id)}>
             <title>{label}</title>
           </circle>
@@ -81,12 +83,47 @@ function Body({ art, zones, onToggle }) {
   );
 }
 
+// Intensité d'une zone : boutons pour une petite échelle, curseur sinon
+function IntensityInput({ value, onChange, scale, label }) {
+  const count = scale.max - scale.min + 1;
+  return (
+    <div>
+      {count <= MAX_BUTTONS ? (
+        <div className="flex items-center gap-1" role="radiogroup" aria-label={label}>
+          {Array.from({ length: count }, (_, i) => scale.min + i).map(n => (
+            <button key={n} type="button" role="radio" aria-checked={n === value}
+              onClick={() => onChange(n)}
+              className={`flex-1 h-8 rounded text-xs font-semibold transition ${n === value ? 'text-white shadow' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
+              style={n === value ? { background: intensityColor(n, scale) } : undefined}>
+              {n}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <input type="range" min={scale.min} max={scale.max} value={value} aria-label={label}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="flex-1 h-3 rounded-lg appearance-none cursor-pointer"
+            style={{ background: `linear-gradient(to right, ${intensityColor(scale.min, scale)}, ${intensityColor((scale.min + scale.max) / 2, scale)}, ${intensityColor(scale.max, scale)})` }} />
+          <span className="w-10 text-right text-sm font-bold" style={{ color: intensityColor(value, scale) }}>{value}</span>
+        </div>
+      )}
+      {(scale.minLabel || scale.maxLabel) && (
+        <div className="flex justify-between gap-2 mt-1 text-[11px] text-slate-500">
+          <span>{scale.minLabel}</span><span className="text-right">{scale.maxLabel}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Question « Zones douloureuses » : silhouette homme ou femme (selon le profil
  * de l'athlète, sinon au choix) à retourner devant / derrière, puis une
- * intensité de 1 à 10 par zone touchée. Valeur : { [zoneId]: intensité }.
+ * intensité par zone touchée, sur l'échelle de la question (`scale`, voir
+ * painScaleOf ; 1 à 10 par défaut). Valeur : { [zoneId]: intensité }.
  */
-export default function BodyPainInput({ value, onChange, t, sex, initialView = 'front' }) {
+export default function BodyPainInput({ value, onChange, t, sex, scale = PAIN_SCALE_DEFAULT, initialView = 'front' }) {
   const zones = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const [view, setView] = useState(initialView);
   const [turning, setTurning] = useState(false);
@@ -96,8 +133,8 @@ export default function BodyPainInput({ value, onChange, t, sex, initialView = '
 
   const toggle = (id) => {
     const next = { ...zones };
-    if (next[id]) delete next[id];
-    else next[id] = PAIN_INTENSITY_DEFAULT;
+    if (isPainZoneOn(next[id])) delete next[id];
+    else next[id] = painScaleMiddle(scale);
     onChange(next);
   };
   const setIntensity = (id, v) => onChange({ ...zones, [id]: v });
@@ -110,7 +147,7 @@ export default function BodyPainInput({ value, onChange, t, sex, initialView = '
     try { localStorage.setItem(SEX_STORAGE_KEY, s); } catch { /* stockage indisponible */ }
   };
 
-  const selected = Object.keys(zones).filter(id => zones[id] && painZoneInfo(id));
+  const selected = Object.keys(zones).filter(id => isPainZoneOn(zones[id]) && painZoneInfo(id));
   const otherView = view === 'front' ? 'back' : 'front';
   // Zones cochées visibles seulement de l'autre côté
   const otherCount = selected.filter(id => !VIEW_ZONE_IDS[view].has(id) && VIEW_ZONE_IDS[otherView].has(id)).length;
@@ -138,7 +175,7 @@ export default function BodyPainInput({ value, onChange, t, sex, initialView = '
         </div>
 
         <div style={{ transform: turning ? 'scaleX(0)' : 'scaleX(1)', transition: `transform ${FLIP_MS}ms ease-in-out` }}>
-          <Body art={art} zones={zones} onToggle={toggle} />
+          <Body art={art} zones={zones} onToggle={toggle} scale={scale} />
         </div>
 
         <div className="w-52 flex justify-between text-xs font-semibold" style={{ color: INK }}>
@@ -163,7 +200,7 @@ export default function BodyPainInput({ value, onChange, t, sex, initialView = '
       ) : (
         <div className="space-y-2">
           {selected.map(id => {
-            const v = typeof zones[id] === 'number' ? zones[id] : PAIN_INTENSITY_DEFAULT;
+            const v = typeof zones[id] === 'number' ? Math.min(Math.max(zones[id], scale.min), scale.max) : painScaleMiddle(scale);
             const info = painZoneInfo(id);
             const views = viewsOf(id);
             const onlyView = views.length === 1 ? views[0] : null;
@@ -183,16 +220,7 @@ export default function BodyPainInput({ value, onChange, t, sex, initialView = '
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="flex items-center gap-1" role="radiogroup" aria-label={t.painIntensity}>
-                  {Array.from({ length: PAIN_INTENSITY_MAX }, (_, i) => i + 1).map(n => (
-                    <button key={n} type="button" role="radio" aria-checked={n === v}
-                      onClick={() => setIntensity(id, n)}
-                      className={`flex-1 h-8 rounded text-xs font-semibold transition ${n === v ? 'text-white shadow' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
-                      style={n === v ? { background: intensityColor(n) } : undefined}>
-                      {n}
-                    </button>
-                  ))}
-                </div>
+                <IntensityInput value={v} onChange={(n) => setIntensity(id, n)} scale={scale} label={t.painIntensity} />
               </div>
             );
           })}

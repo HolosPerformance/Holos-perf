@@ -15,6 +15,7 @@ import MarkerTrendsTable from '@/components/medical/MarkerTrendsTable';
 import PainReports from '@/components/medical/PainReports';
 import { extractMarkerData, athleteTrends, shiftDay, TRENDS_LOOKBACK_DAYS } from '@/lib/markerTrends';
 import { questionnaireDay } from '@/lib/questionnaireDay';
+import { formatPainIntensity } from '@/lib/painZones';
 import {
   INJURY_STATUSES, AVAILABLE_STATUS, INJURY_TYPES, BODY_LOCATIONS,
   labelOf, formatDate, daysBetween,
@@ -194,7 +195,7 @@ export default function MedicalPage() {
       prefill: {
         body_location: zone.location,
         side: zone.side,
-        notes: `Douleur signalée par l'athlète : ${zone.fullLabel}${zone.intensity != null ? ` (${zone.intensity}/10)` : ''}`,
+        notes: `Douleur signalée par l'athlète : ${zone.fullLabel}${zone.intensity != null ? ` (${formatPainIntensity(zone)})` : ''}`,
       },
     });
   };

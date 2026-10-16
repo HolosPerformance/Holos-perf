@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { athleteLanguage, localizeTemplate, localizeQuestion, uiStrings } from '@/lib/questionnaireI18n';
 import BodyPainInput from './BodyPainInput';
+import { painScaleOf } from '@/lib/painZones';
 
 const resolveSelectionLabels = (answer, sourceQuestion) => {
   if (!Array.isArray(answer)) return answer;
@@ -329,6 +330,7 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
                     onChange={(v) => setResponses({ ...responses, [q.id]: v })}
                     t={t}
                     sex={athleteSex}
+                    scale={painScaleOf(q)}
                   />
                 </div>
               )}
