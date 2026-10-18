@@ -94,9 +94,21 @@ Deno.serve(async (req) => {
       .from('events')
       .select('id, title, event_date, start_time, end_time, duration_minutes, assigned_athletes, questionnaire_template_id, is_training_session')
       .eq('event_date', clock.today),
+    // Seules les réponses récentes comptent : celles du jour pour le rappel
+    // quotidien, celles des séances du jour pour le rappel post-séance.
+    //
+    // Sans ce filtre, la requête remontait l'ensemble de la table — or PostgREST
+    // plafonne à 1000 lignes et renvoie les plus anciennes. Passé ce volume, les
+    // réponses récentes disparaissaient du lot et la vérification « a déjà
+    // répondu » devenait inopérante : des rappels partaient à des athlètes ayant
+    // pourtant rempli leur questionnaire.
+    //
+    // La fenêtre de 48 h couvre la journée en cours quel que soit le décalage
+    // horaire, tout en gardant le volume négligeable.
     supabase
       .from('questionnaire_responses')
-      .select('athlete_email, event_id, template_id, submitted_date'),
+      .select('athlete_email, event_id, template_id, submitted_date')
+      .gte('submitted_date', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()),
     supabase
       .from('questionnaire_templates')
       .select('id, is_active, assigned_athletes'),
