@@ -44,28 +44,63 @@ const realtimeChannels = new Map();
 const PAGE_SIZE = 1000;
 const IN_CHUNK_SIZE = 50;
 
+/**
+ * Lit une requête page par page, jusqu'à `limit` lignes ou épuisement.
+ *
+ * Supabase plafonne chaque réponse à `max_rows` lignes, 1000 par défaut.
+ * Une requête simple tronquait donc silencieusement dès qu'une table dépassait
+ * ce seuil : aucune erreur, juste les premières lignes de l'ordre demandé. Les
+ * totaux affichés aux coachs étaient faussés et les exports incomplets.
+ *
+ * Le tri est complété par `id` pour départager les égalités : sans cet ordre
+ * stable, une même ligne pourrait apparaître sur deux pages, ou n'apparaître
+ * sur aucune.
+ *
+ * @param {() => object} construireRequete  fabrique une requête neuve à chaque page
+ * @param {number|null}  limit              nombre maximum de lignes, null = toutes
+ * @param {string}       contexte           préfixe des messages d'erreur
+ */
+async function lireParPages(construireRequete, limit, contexte) {
+  const lignes = [];
+  for (let debut = 0; ; debut += PAGE_SIZE) {
+    const restant = limit == null ? PAGE_SIZE : Math.min(PAGE_SIZE, limit - lignes.length);
+    if (restant <= 0) break;
+
+    const { data, error } = await construireRequete()
+      .order('id', { ascending: true })
+      .range(debut, debut + restant - 1);
+
+    if (error) throw new Error(`[${contexte}: ${error.message}`);
+    lignes.push(...(data || []));
+    if (!data || data.length < restant) break;
+  }
+  return lignes;
+}
+
 function makeEntity(entityName) {
   const table = TABLE_MAP[entityName];
   if (!table) { console.warn(`Entité inconnue : ${entityName}`); return null; }
 
   return {
-    async list(orderBy = '-created_at', limit = 1000) {
+    // `limit` null = toutes les lignes. Voir lireParPages ci-dessus : une requête
+    // simple tronquait silencieusement au-delà de 1000 lignes.
+    async list(orderBy = '-created_at', limit = null) {
       const order = parseOrder(orderBy);
-      let q = supabaseRaw.from(table).select('*').limit(limit);
-      if (order) q = q.order(order.column, { ascending: order.ascending });
-      const { data, error } = await q;
-      if (error) throw new Error(`[${table}] list: ${error.message}`);
-      return data || [];
+      return lireParPages(() => {
+        let q = supabaseRaw.from(table).select('*');
+        if (order) q = q.order(order.column, { ascending: order.ascending });
+        return q;
+      }, limit, `${table}] list`);
     },
 
-    async filter(conditions = {}, orderBy = '-created_at', limit = 1000) {
-      let q = supabaseRaw.from(table).select('*').limit(limit);
-      for (const [col, val] of Object.entries(conditions)) q = q.eq(col, val);
+    async filter(conditions = {}, orderBy = '-created_at', limit = null) {
       const order = parseOrder(orderBy);
-      if (order) q = q.order(order.column, { ascending: order.ascending });
-      const { data, error } = await q;
-      if (error) throw new Error(`[${table}] filter: ${error.message}`);
-      return data || [];
+      return lireParPages(() => {
+        let q = supabaseRaw.from(table).select('*');
+        for (const [col, val] of Object.entries(conditions)) q = q.eq(col, val);
+        if (order) q = q.order(order.column, { ascending: order.ascending });
+        return q;
+      }, limit, `${table}] filter`);
     },
 
     // Toutes les lignes dont `column` vaut l'une des `values`, sans limite :
