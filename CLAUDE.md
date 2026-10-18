@@ -1,137 +1,137 @@
-# Repères pour travailler sur ce projet
+# Working on this project
 
-Complément au `README.md`, qui couvre l'installation. Ce document rassemble ce qui ne se devine pas en lisant le code : le fonctionnement du déploiement, les conventions, et les pièges déjà rencontrés.
+Companion to `README.md`, which covers installation. This file gathers what you cannot infer from reading the code: how deployment actually works, the conventions in use, and the traps already encountered.
 
 ---
 
-## Le déploiement passe par deux canaux indépendants
+## Deployment runs through two independent channels
 
-C'est le point le plus important, et la source de la plupart des confusions.
+This is the single most important thing to know, and the source of most confusion.
 
-| Canal | Ce qu'il déploie | Déclencheur |
+| Channel | What it deploys | Trigger |
 |---|---|---|
-| **Vercel** | l'interface React | automatique, au push sur `main` |
-| **Supabase** | migrations de base de données | automatique, au push sur `main` |
-| **Supabase — Edge Functions** | les fonctions serveur | ⚠️ **manuel, jamais automatique** |
+| **Vercel** | the React front end | automatic, on push to `main` |
+| **Supabase** | database migrations | automatic, on push to `main` |
+| **Supabase — Edge Functions** | server-side functions | ⚠️ **manual, never automatic** |
 
-Production : https://holos-perf.vercel.app
+Production: https://holos-perf.vercel.app
 
-### ⚠️ Les Edge Functions ne se déploient pas toutes seules
+### ⚠️ Edge Functions never deploy on their own
 
-L'intégration GitHub de Supabase applique les migrations, **mais pas les fonctions**. Toute modification de `supabase/functions/` exige :
+Supabase's GitHub integration applies migrations, **but not functions**. Any change under `supabase/functions/` requires:
 
 ```bash
 git checkout main && git pull
-supabase functions deploy <nom-de-la-fonction>
+supabase functions deploy <function-name>
 ```
 
-Sans ça, la fonction continue de tourner dans sa version précédente — **sans aucune alerte**. Une PR peut être relue, mergée et « déployée » alors que le serveur exécute toujours l'ancien code.
+Skip it and the function keeps running its previous version — **with no warning whatsoever**. A pull request can be reviewed, merged and "deployed" while the server still executes the old code.
 
-### Vérifier qu'un déploiement a bien eu lieu
+### Confirming a deployment actually happened
 
 ```bash
-# Front : le nom du fichier change à chaque déploiement
+# Front end: the file name changes on every deployment
 curl -s https://holos-perf.vercel.app/ | grep -oE '/assets/index-[A-Za-z0-9_-]+\.js'
 
-# Base : rien ne doit manquer côté distant
+# Database: nothing should be missing on the remote side
 supabase migration list
 
-# Fonctions : vérifier le numéro de version
+# Functions: check the version number
 supabase functions list
 ```
 
 ---
 
-## Processus de release
+## Release process
 
 ```
-PR de fonctionnalité  →  develop
-PR « [Release] … »    →  main      ← déclenche les déploiements
+feature pull request  →  develop
+"[Release] …" request  →  main      ← triggers deployments
 ```
 
-`main` est protégée : pas de push direct, PR obligatoire, et **fusion par commit de merge uniquement** (ni squash ni rebase, pour préserver l'historique des deux branches).
+`main` is protected: no direct pushes, pull request required, and **merge commits only** (no squash, no rebase, so both branches keep their history).
 
-Après une release, dérouler les vérifications ci-dessus. Une release peut réussir côté front et échouer côté base, ou l'inverse, sans que rien ne le signale.
+Run the checks above after every release. A release can succeed on the front end and fail on the database, or the reverse, with nothing to signal it.
 
-### Format des descriptions de PR
+### Pull request descriptions
 
-Des non-développeurs lisent ces PR. La description suit un format « ticket » :
+Non-developers read these pull requests, and they are written in French. Descriptions follow a ticket-style format:
 
-1. **Type** (✨ Fonctionnalité · 🐛 Bug · 🔧 Maintenance · 📚 Documentation · 🔒 Sécurité) et **source de la demande**
-2. **🧾 En bref** — une phrase compréhensible par tous
-3. **✅ Ce que fait cette PR** — en langage clair, sans jargon
-4. **📌 Impact** — par public : utilisateurs, coachs et administrateurs, production et données
-5. **📸 Capture** — si l'interface change
-6. **🔧 Détails techniques** — dans un bloc `<details>` repliable
+1. **Type** (✨ Fonctionnalité · 🐛 Bug · 🔧 Maintenance · 📚 Documentation · 🔒 Sécurité) and where the request came from
+2. **🧾 En bref** — one sentence anyone can understand
+3. **✅ Ce que fait cette PR** — plain language, no jargon
+4. **📌 Impact** — per audience: users, coaches and administrators, production and data
+5. **📸 Capture** — only when the interface changes
+6. **🔧 Détails techniques** — inside a collapsible `<details>` block
 
-Le titre porte un préfixe entre crochets et reste lisible par un non-technicien. Les PR de release sont **toujours** préfixées `[Release]`, quel que soit leur contenu.
+Titles carry a bracketed prefix and stay readable by a non-technical person. Release pull requests are **always** prefixed `[Release]`, whatever they contain.
 
 ---
 
-## Base de données
+## Database
 
-### La confidentialité (RLS) doit rester active partout
+### Row level security must stay on everywhere
 
-Les 16 tables publiques ont la RLS activée. Sans elle, la clé anon — publique par conception, embarquée dans le bundle JavaScript — donne un accès complet en lecture et en écriture.
+All 16 public tables have RLS enabled. Without it the anon key — public by design, embedded in the JavaScript bundle — grants full read and write access.
 
 ```sql
--- Doit ne renvoyer aucune ligne
+-- Must return no rows
 select relname from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
  where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity;
 ```
 
-Une policy écrite mais non activée est **inerte** : PostgreSQL ne l'évalue pas tant que `ENABLE ROW LEVEL SECURITY` n'a pas été posé sur la table. Toute nouvelle table doit donc activer la RLS **et** définir ses policies.
+A policy that exists but was never enabled is **inert**: PostgreSQL does not evaluate it until `ENABLE ROW LEVEL SECURITY` has been set on the table. Any new table must therefore enable RLS **and** define its policies.
 
-### Toute modification de schéma passe par une migration
-
-```bash
-supabase migration new <nom>
-```
-
-Ne jamais modifier le schéma depuis l'éditeur SQL du tableau de bord : le changement s'applique en production sans laisser de trace, la base locale diverge, et les migrations suivantes supposent un état qui n'existe pas.
-
-### ⚠️ Ne jamais lancer `supabase config push`
-
-`supabase/config.toml` décrit l'environnement **local**. L'appliquer écraserait `site_url` et les URLs de redirection par des adresses locales, rendant la connexion impossible en production.
-
-Pour comparer sans rien modifier : `supabase config diff`. Pour changer un réglage en production : le tableau de bord.
-
----
-
-## Notifications push
-
-Chaîne complète : abonnement côté navigateur → stocké dans `user_preferences.preferences` → tâche planifiée toutes les 15 min → Edge Function `send-reminders` → service de push → appareil.
-
-- **La clé publique VAPID est figée dans `src/lib/pushNotifications.js`**, pas en variable d'environnement : elle est publique par conception et permanente. En changer invaliderait tous les abonnements existants.
-- La variable `VITE_VAPID_PUBLIC_KEY` reste prioritaire si elle existe, pour que le développement local utilise une paire distincte et ne puisse jamais notifier un appareil réel.
-- La clé privée vit dans les secrets Supabase, jamais dans le dépôt.
-- `src/lib/pushNotifications.js` vérifie l'abonnement **du navigateur courant**, pas seulement ce que dit la base : un abonnement est lié au couple (navigateur, origine), celui d'un ordinateur ne vaut pas pour un téléphone.
-- Sur iOS, les notifications n'existent que si l'application est **installée sur l'écran d'accueil**. Dans un onglet Safari, l'abonnement échoue.
-- L'endpoint d'abonnement est écrit par l'utilisateur : il est validé contre la liste des services de push légitimes avant tout envoi, sinon le serveur deviendrait un relais vers des adresses internes.
-
----
-
-## Commandes
+### Every schema change goes through a migration
 
 ```bash
-npm run dev          # serveur de développement
-npm run build        # build de production
-npm run lint         # 63 problèmes préexistants : ne pas en ajouter
-
-supabase start       # stack locale (Docker requis, ~2,3 Go)
-supabase stop        # conserve les données
-supabase db reset    # rejoue migrations + seed
+supabase migration new <name>
 ```
 
-Le seed crée cinq comptes de test en `@holos.test`, mot de passe `password123`, dont un administrateur. **Il ne doit jamais être appliqué à un environnement accessible.**
+Never change the schema from the dashboard SQL editor: the change lands in production untracked, the local database drifts, and later migrations assume a state that does not exist.
+
+### ⚠️ Never run `supabase config push`
+
+`supabase/config.toml` describes the **local** environment. Pushing it would overwrite `site_url` and the redirect URLs with local addresses, making sign-in impossible in production.
+
+To compare without changing anything: `supabase config diff`. To change a production setting: the dashboard.
 
 ---
 
-## Pièges déjà rencontrés
+## Push notifications
 
-- Un **« Redeploy »** depuis le tableau de bord Vercel rejoue le commit existant, **pas** le dernier. Pour déployer un commit en retard, il faut un nouvel événement.
-- **Changer le dépôt de propriétaire rompt le lien Vercel** sans alerte. Symptôme : plus de check Vercel sur les PR.
-- Ni Vercel ni Supabase ne **rattrapent rétroactivement** : connecter une intégration n'applique pas les merges déjà passés.
-- Les aperçus Vercel sont protégés par authentification et ne sont pas consultables sans compte sur l'équipe.
-- Comparer un jeton reçu à `SUPABASE_SERVICE_ROLE_KEY` par égalité de chaîne ne fonctionne pas : Supabase émet plusieurs identifiants valides pour ce rôle. Vérifier la revendication `role` du jeton, la plateforme ayant déjà validé sa signature.
+Full chain: browser subscribes → stored in `user_preferences.preferences` → scheduled job every 15 minutes → `send-reminders` Edge Function → push service → device.
+
+- **The VAPID public key is hardcoded in `src/lib/pushNotifications.js`**, not an environment variable: it is public by design and permanent. Changing it would invalidate every existing subscription.
+- `VITE_VAPID_PUBLIC_KEY` still takes precedence when present, so local development uses a separate pair and can never reach a real device.
+- The private key lives in Supabase secrets, never in the repository.
+- `src/lib/pushNotifications.js` checks the **current browser's** subscription, not just what the database says: a subscription is tied to a (browser, origin) pair, so a desktop one means nothing for a phone.
+- On iOS, notifications only work once the app is **installed to the home screen**. Subscribing from a Safari tab fails.
+- The subscription endpoint is user-written, so it is validated against the list of legitimate push services before any send — otherwise the server would become a relay toward internal addresses.
+
+---
+
+## Commands
+
+```bash
+npm run dev          # development server
+npm run build        # production build
+npm run lint         # 63 pre-existing problems: do not add more
+
+supabase start       # local stack (needs Docker, ~2.3 GB)
+supabase stop        # keeps your data
+supabase db reset    # replays migrations + seed
+```
+
+The seed creates five test accounts under `@holos.test`, password `password123`, one of them an administrator. **It must never be applied to a reachable environment.**
+
+---
+
+## Traps already hit
+
+- A **"Redeploy"** from the Vercel dashboard replays the existing commit, **not** the latest one. Deploying a commit left behind requires a fresh event.
+- **Transferring the repository to another owner breaks the Vercel link** silently. Symptom: the Vercel check disappears from pull requests.
+- Neither Vercel nor Supabase **catch up retroactively**: connecting an integration does not apply merges that already happened.
+- Vercel previews sit behind authentication and cannot be opened without an account on the team.
+- Comparing an incoming token to `SUPABASE_SERVICE_ROLE_KEY` by string equality does not work: Supabase issues several valid credentials for that role. Check the token's `role` claim instead — the platform has already verified its signature.
