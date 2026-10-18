@@ -91,6 +91,22 @@ supabase migration new <name>
 
 Never change the schema from the dashboard SQL editor: the change lands in production untracked, the local database drifts, and later migrations assume a state that does not exist.
 
+### ⚠️ Reads are capped at 1000 rows
+
+Supabase caps every response at `max_rows` — **1000** here, set in `supabase/config.toml`. Past that, a plain query returns the first thousand rows of the requested order **with no error and no warning**.
+
+Asking for more does not help: the server limit wins over the client's. An export requesting 5000 rows received 1000.
+
+The entity wrapper in `src/api/supabaseClient.js` pages through results, so `list`, `filter` and `filterIn` all return everything. **Any raw `supabaseRaw.from(...)` query bypasses that and will truncate silently** — including in Edge Functions, which do not use the wrapper at all.
+
+When writing a query against a table that may grow past a thousand rows:
+
+- prefer the wrapper, or page explicitly with `.range()`
+- always add a stable tiebreaker to the ordering, e.g. `.order('id', { ascending: true })` — without it a row can appear on two pages, or on none
+- better still, filter server-side so the result stays small: a date range, an athlete, a template
+
+This has already caused two production bugs: coach-facing totals understated by hundreds, with two questionnaires showing zero responses when they had 23 and 13; and a reminder function that kept notifying athletes who had already answered, because their responses fell outside the first thousand.
+
 ### ⚠️ Never run `supabase config push`
 
 `supabase/config.toml` describes the **local** environment. Pushing it would overwrite `site_url` and the redirect URLs with local addresses, making sign-in impossible in production.
@@ -135,3 +151,4 @@ The seed creates five test accounts under `@holos.test`, password `password123`,
 - Neither Vercel nor Supabase **catch up retroactively**: connecting an integration does not apply merges that already happened.
 - Vercel previews sit behind authentication and cannot be opened without an account on the team.
 - Comparing an incoming token to `SUPABASE_SERVICE_ROLE_KEY` by string equality does not work: Supabase issues several valid credentials for that role. Check the token's `role` claim instead — the platform has already verified its signature.
+- A query returning exactly 1000 rows is almost certainly truncated, not complete. See *Reads are capped at 1000 rows* above.
