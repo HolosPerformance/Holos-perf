@@ -8,7 +8,22 @@
 
 import { supabaseRaw } from '@/api/supabaseClient';
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+/**
+ * Clé publique VAPID de production.
+ *
+ * Figée ici plutôt que fournie par une variable d'environnement, pour deux
+ * raisons : elle est publique par conception — Vite l'inline dans le bundle que
+ * n'importe quel visiteur peut lire — et elle est permanente, puisqu'en changer
+ * invaliderait tous les abonnements déjà enregistrés.
+ *
+ * La variable d'environnement reste prioritaire : le développement local
+ * utilise une paire distincte, déclarée dans .env, pour qu'un test local ne
+ * puisse jamais notifier un vrai téléphone.
+ */
+const VAPID_PUBLIC_KEY_PROD =
+  'BG2PInGoLTM_NiTzneuXUAPb2N016L_-MjCEHpfok67yKKwkOoEWxmSYf-chrM2KYI289lzN5ScwJa8jpw3OSfk';
+
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY_PROD;
 
 export const DEFAULT_REMINDER_TIME = '20:00';
 
