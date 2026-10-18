@@ -27,6 +27,7 @@ import CustomQuestionnaireForm from '../components/questionnaire/CustomQuestionn
 import { athleteLanguage, localizeTemplate } from '@/lib/questionnaireI18n';
 import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import EventCalendar from '../components/calendar/EventCalendar';
+import PushNotificationPrompt from '../components/PushNotificationPrompt';
 import { format, parseISO } from 'date-fns';
 import { questionnaireDay, previousQuestionnaireDay, responseDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
@@ -601,6 +602,8 @@ export default function AthleteHome() {
             );
           })}
         </div>
+
+        <PushNotificationPrompt athleteEmail={user.email} />
 
         {/* Calendrier */}
         <div className="mt-12">
