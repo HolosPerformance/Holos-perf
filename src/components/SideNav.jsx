@@ -4,7 +4,7 @@ import { createPageUrl } from '@/utils';
 import { supabase as base44 } from '@/api/supabaseClient';
 import {
   LayoutDashboard, CalendarDays, Calendar, MessageSquare, Users, User,
-  FileText, Download, Settings, Home, ClipboardList, Shield, X
+  FileText, Download, Settings, Home, ClipboardList, Shield, X, HeartPulse
 } from 'lucide-react';
 
 const adminLinks = [
@@ -13,6 +13,7 @@ const adminLinks = [
   { label: 'Dashboard', icon: LayoutDashboard, to: createPageUrl('CoachDashboard') },
   { label: 'Utilisateurs & Groupes', icon: Users, to: createPageUrl('UserManagement') },
   { label: 'Fiches Athlètes', icon: User, to: createPageUrl('AthleteProfile') },
+  { label: 'Médical', icon: HeartPulse, to: '/Medical' },
   { label: 'Messages', icon: MessageSquare, to: createPageUrl('Messages') },
   { label: 'Export données', icon: Download, to: createPageUrl('DataExport') },
   { label: 'Bibliothèque', icon: ClipboardList, to: createPageUrl('Questionnaires') },
@@ -25,6 +26,7 @@ const coachLinks = [
   { label: 'Calendrier', icon: CalendarDays, to: createPageUrl('CalendarPage') },
   { label: 'Dashboard', icon: LayoutDashboard, to: createPageUrl('CoachDashboard') },
   { label: 'Gestion de groupe', icon: Users, to: createPageUrl('GroupManagement') },
+  { label: 'Médical', icon: HeartPulse, to: '/Medical' },
   { label: 'Messages', icon: MessageSquare, to: createPageUrl('Messages') },
   { label: 'Questionnaires', icon: ClipboardList, to: createPageUrl('CoachQuestionnaires') },
   { label: 'Export données', icon: Download, to: createPageUrl('DataExport') },
@@ -150,7 +152,7 @@ export default function SideNav({ userStatus, unreadCount, mobileOpen, onMobileC
     <>
       {/* Desktop: icônes seulement, hover pour déployer */}
       <aside
-        className="hidden md:flex flex-col shrink-0 border-r border-slate-200 bg-white/70 backdrop-blur-sm overflow-hidden transition-all duration-300 z-40 fixed top-36 left-0 h-[calc(100vh-9rem)]"
+        className="hidden lg:flex flex-col shrink-0 border-r border-slate-200 bg-white/70 backdrop-blur-sm overflow-hidden transition-all duration-300 z-40 fixed top-24 left-0 h-[calc(100vh-6rem)]"
         style={{ width: hovered ? '18rem' : '4.5rem' }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
@@ -161,7 +163,7 @@ export default function SideNav({ userStatus, unreadCount, mobileOpen, onMobileC
 
       {/* Mobile: overlay drawer */}
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/40"

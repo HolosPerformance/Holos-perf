@@ -18,6 +18,20 @@ const SESSION_CATEGORY_LABELS = {
   competition: 'Compétition',
 };
 
+/** Durée de validité des liens de téléchargement (bucket privé). */
+const SIGNED_URL_TTL_SECONDS = 60 * 10;
+
+/**
+ * Chemin de l'objet dans le bucket. Les documents importés avant le passage du
+ * bucket en privé portent une URL publique complète : on en extrait le chemin.
+ */
+function storagePath(fileUrl) {
+  if (!fileUrl) return '';
+  const marker = '/session-documents/';
+  const at = fileUrl.indexOf(marker);
+  return at === -1 ? fileUrl : `session-documents/${fileUrl.slice(at + marker.length)}`;
+}
+
 export default function SessionDetailModal({ event, user, open, onClose }) {
   const [uploading, setUploading] = useState(false);
   const [description, setDescription] = useState('');
@@ -28,10 +42,17 @@ export default function SessionDetailModal({ event, user, open, onClose }) {
     user?.user_status === 'coach' ||
     user?.user_status === 'coach_pro';
 
-  // Charger les documents liés à cette séance
+  // Charger les documents liés à cette séance, avec une URL signée pour chacun.
   const { data: documents = [] } = useQuery({
     queryKey: ['session-documents', event?.id],
-    queryFn: () => base44.entities.SessionDocument.filter({ event_id: event.id }),
+    queryFn: async () => {
+      const docs = await base44.entities.SessionDocument.filter({ event_id: event.id });
+      if (docs.length === 0) return docs;
+      const { data: signed } = await supabaseRaw.storage
+        .from('session-documents')
+        .createSignedUrls(docs.map((d) => storagePath(d.file_url)), SIGNED_URL_TTL_SECONDS);
+      return docs.map((doc, i) => ({ ...doc, signed_url: signed?.[i]?.signedUrl || null }));
+    },
     enabled: !!event?.id && isCoachOrAdmin,
   });
 
@@ -51,17 +72,20 @@ export default function SessionDetailModal({ event, user, open, onClose }) {
       const path = `session-documents/${event.id}_${Date.now()}_${file.name}`;
       const { error: uploadError } = await supabaseRaw.storage.from('session-documents').upload(path, file, { upsert: true });
       if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabaseRaw.storage.from('session-documents').getPublicUrl(path);
+      // Le bucket est privé : on conserve le chemin, l'URL est signée à la lecture.
       await base44.entities.SessionDocument.create({
         event_id: event.id,
         file_name: file.name,
-        file_url: publicUrl,
+        file_url: path,
         uploaded_by: user.email,
       });
       queryClient.invalidateQueries({ queryKey: ['session-documents', event?.id] });
       toast.success('Document importé');
     } catch (err) {
-      toast.error('Erreur lors de l\'import');
+      const isMimeRejected = /mime type|not supported|invalid_mime/i.test(err?.message || '');
+      toast.error(isMimeRejected
+        ? 'Seuls les fichiers PDF sont acceptés.'
+        : 'Erreur lors de l\'import');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -183,6 +207,7 @@ export default function SessionDetailModal({ event, user, open, onClose }) {
                       <input
                         ref={fileInputRef}
                         type="file"
+                        accept="application/pdf"
                         className="hidden"
                         onChange={handleUpload}
                       />
@@ -205,7 +230,13 @@ export default function SessionDetailModal({ event, user, open, onClose }) {
                         <div key={doc.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200">
                           <span className="text-sm text-slate-700 truncate flex-1 mr-2">{doc.file_name}</span>
                           <div className="flex gap-1 flex-shrink-0">
-                            <a href={doc.file_url} target="_blank" rel="noopener noreferrer">
+                            <a
+                              href={doc.signed_url || undefined}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-disabled={!doc.signed_url}
+                              className={doc.signed_url ? '' : 'pointer-events-none opacity-40'}
+                            >
                               <Button size="icon" variant="ghost" className="h-7 w-7">
                                 <Download className="w-3.5 h-3.5" />
                               </Button>

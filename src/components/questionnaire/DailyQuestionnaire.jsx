@@ -9,7 +9,8 @@ import SessionTypeSelector from './SessionTypeSelector';
 import AnalogScale from './AnalogScale';
 import BodyPainSelector from './BodyPainSelector';
 import { CheckCircle, Loader2, ClipboardList } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { questionnaireDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -73,7 +74,7 @@ export default function DailyQuestionnaire({ user, onComplete, existingLog }) {
       ...formData,
       athlete_email: user.email,
       athlete_name: user.full_name,
-      training_date: format(new Date(), 'yyyy-MM-dd'),
+      training_date: questionnaireDay(),
       duration_minutes: formData.duration_minutes ? Number(formData.duration_minutes) : null
     };
 
@@ -121,7 +122,7 @@ export default function DailyQuestionnaire({ user, onComplete, existingLog }) {
           <div>
             <span className="block">Questionnaire du jour</span>
             <span className="text-sm font-normal text-slate-500">
-              {format(new Date(), 'EEEE d MMMM yyyy', { locale: fr })}
+              {format(parseISO(questionnaireDay()), 'EEEE d MMMM yyyy', { locale: fr })}
             </span>
           </div>
         </CardTitle>

@@ -7,12 +7,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ClipboardList, CheckCircle, ChevronRight, Pencil } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { questionnaireDay, responseDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 import CustomQuestionnaireForm from '@/components/questionnaire/CustomQuestionnaireForm';
 
-const today = format(new Date(), 'yyyy-MM-dd');
+const today = questionnaireDay();
 
 export default function CoachFillAthleteQuestionnaire() {
   const { user: coachUser } = useAuth();
@@ -52,7 +53,7 @@ export default function CoachFillAthleteQuestionnaire() {
     queryKey: ['athlete-today-responses', athleteEmail, today],
     queryFn: async () => {
       const all = await base44.entities.QuestionnaireResponse.filter({ athlete_email: athleteEmail });
-      return all.filter(r => r.submitted_date?.startsWith(today));
+      return all.filter(r => responseDay(r) === today);
     },
     enabled: !!athleteEmail
   });
@@ -120,7 +121,7 @@ export default function CoachFillAthleteQuestionnaire() {
                 {isLoading ? 'Chargement...' : athleteUser?.full_name || athleteEmail}
               </h1>
               <p className="text-slate-500 text-sm capitalize">
-                {format(new Date(), 'EEEE d MMMM yyyy', { locale: fr })}
+                {format(parseISO(today), 'EEEE d MMMM yyyy', { locale: fr })}
               </p>
             </div>
           </div>
@@ -230,6 +231,8 @@ export default function CoachFillAthleteQuestionnaire() {
                 <CustomQuestionnaireForm
                   questionnaire={activeTemplate}
                   user={athleteUser}
+                  // L'entraîneur remplit à la place de l'athlète : toujours en français
+                  language="fr"
                   onSuccess={handleSuccess}
                   existingResponseId={existingResponseId}
                 />

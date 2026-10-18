@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle, Loader2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import { athleteLanguage, localizeTemplate, localizeQuestion, uiStrings } from '@/lib/questionnaireI18n';
+import BodyPainInput from './BodyPainInput';
+import { painScaleOf } from '@/lib/painZones';
 
 const resolveSelectionLabels = (answer, sourceQuestion) => {
   if (!Array.isArray(answer)) return answer;
@@ -37,7 +40,8 @@ const isQuestionVisible = (q, currentResponses, allQuestions = []) => {
   return true;
 };
 
-export default function CustomQuestionnaireForm({ questionnaire, user, onComplete, templateId, userEmail, forceDate, onSuccess, eventId, existingResponseId }) {
+// language (optionnel) force la langue d'affichage, sinon celle assignée à l'athlète.
+export default function CustomQuestionnaireForm({ questionnaire, user, onComplete, templateId, userEmail, forceDate, onSuccess, eventId, existingResponseId, language }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [responses, setResponses] = useState({});
@@ -69,6 +73,22 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
     }
   }, [templateId, questionnaire, userEmail, user, existingResponseId, loadedResponseId]);
 
+  // Langue d'affichage : uniquement les textes changent, les réponses sont
+  // enregistrées par identifiant de question / index de choix comme en français.
+  const lang = language || athleteLanguage(template || questionnaire, (currentUser || user)?.email || userEmail);
+  const t = uiStrings(lang);
+
+  // Sexe de l'athlète (profil) : silhouette du schéma « Zones douloureuses »
+  const athleteEmail = (currentUser || user)?.email || userEmail;
+  const hasPainQuestion = ((template || questionnaire)?.questions || []).some(q => q.type === 'body_pain');
+  const [athleteSex, setAthleteSex] = useState(null);
+  React.useEffect(() => {
+    if (!athleteEmail || !hasPainQuestion) return;
+    base44.entities.AthleteProfile.filter({ athlete_email: athleteEmail })
+      .then(profiles => setAthleteSex(profiles[0]?.sex || null))
+      .catch(() => {});
+  }, [athleteEmail, hasPainQuestion]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -76,7 +96,7 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
     const activeUser = currentUser || user;
 
     if (!currentTemplate || !activeUser) {
-      toast.error('Données manquantes, veuillez réessayer');
+      toast.error(t.toastMissingData);
       return;
     }
 
@@ -97,6 +117,8 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
         const max = q.scaleOptions.max ?? 100;
         finalResponses[q.id] = Math.round((min + max) / 2);
       }
+      // Zones douloureuses : aucune zone touchée = aucune douleur (réponse valide)
+      if (q.type === 'body_pain' && !finalResponses[q.id]) finalResponses[q.id] = {};
     });
 
     // Vérifier les champs obligatoires uniquement sur les questions visibles
@@ -109,7 +131,7 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
     });
 
     if (missingRequired.length > 0) {
-      toast.error(`Veuillez remplir tous les champs obligatoires : ${missingRequired.map(q => q.athleteLabel || q.label).join(', ')}`);
+      toast.error(`${t.missingRequired} ${missingRequired.map(q => { const lq = localizeQuestion(q, lang); return lq.athleteLabel || lq.label; }).join(', ')}`);
       return;
     }
 
@@ -124,7 +146,7 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
           responses: finalResponses,
           submitted_date: submissionDate
         });
-        toast.success('Questionnaire mis à jour !');
+        toast.success(t.toastUpdated);
       } else {
         // Sinon, créer une nouvelle réponse
         await base44.entities.QuestionnaireResponse.create({
@@ -135,7 +157,7 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
           responses: finalResponses,
           submitted_date: submissionDate
         });
-        toast.success('Questionnaire envoyé !');
+        toast.success(t.toastSent);
       }
 
       setSubmitted(true);
@@ -146,7 +168,7 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
         setTimeout(() => onComplete(), 1500);
       }
     } catch (error) {
-      toast.error(`Erreur lors de l'envoi : ${error.message}`);
+      toast.error(`${t.toastError} ${error.message}`);
       setIsSubmitting(false);
     }
   };
@@ -154,8 +176,9 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
   const currentTemplate = template || questionnaire;
   
   if (!currentTemplate) {
-    return <div className="text-center py-8">Chargement...</div>;
+    return <div className="text-center py-8">{t.loading}</div>;
   }
+  const displayTemplate = localizeTemplate(currentTemplate, lang);
 
   if (submitted) {
     return (
@@ -169,8 +192,8 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
             <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-8 h-8 text-white" />
             </div>
-            <h3 className="text-xl font-semibold text-slate-800">Merci !</h3>
-            <p className="text-slate-500 mt-1">Ton questionnaire a été envoyé</p>
+            <h3 className="text-xl font-semibold text-slate-800">{t.thanks}</h3>
+            <p className="text-slate-500 mt-1">{t.sent}</p>
           </motion.div>
         </CardContent>
       </Card>
@@ -190,9 +213,9 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
             />
           )}
           <div className="flex-1">
-            <CardTitle className="text-xl md:text-2xl mb-1">{currentTemplate.name}</CardTitle>
-            {currentTemplate.description && (
-              <p className="text-purple-100 text-sm">{currentTemplate.description}</p>
+            <CardTitle className="text-xl md:text-2xl mb-1">{displayTemplate.name}</CardTitle>
+            {displayTemplate.description && (
+              <p className="text-purple-100 text-sm">{displayTemplate.description}</p>
             )}
           </div>
           <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
@@ -202,9 +225,10 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
       </CardHeader>
       <CardContent className="p-6 md:p-8">
         <form onSubmit={handleSubmit} className="space-y-8">
-          {currentTemplate.questions.map((q, index) => {
-            if (!isQuestionVisible(q, responses, currentTemplate.questions)) return null;
-            
+          {currentTemplate.questions.map((originalQuestion, index) => {
+            if (!isQuestionVisible(originalQuestion, responses, currentTemplate.questions)) return null;
+            // Textes dans la langue de l'athlète ; la visibilité ci-dessus reste calculée sur la question d'origine
+            const q = localizeQuestion(originalQuestion, lang);
             return (
             <motion.div 
               key={q.id} 
@@ -264,7 +288,7 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
               {q.type === 'text' && (
                 <div className="ml-0 sm:ml-9">
                   <Input 
-                    placeholder="Votre réponse..." 
+                    placeholder={t.answerPlaceholder}
                     value={responses[q.id] || ''}
                     onChange={(e) => setResponses({ ...responses, [q.id]: e.target.value })}
                     required={q.required}
@@ -276,7 +300,7 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
               {q.type === 'textarea' && (
                 <div className="ml-0 sm:ml-9">
                   <Textarea 
-                    placeholder="Votre réponse..." 
+                    placeholder={t.answerPlaceholder}
                     rows={4}
                     value={responses[q.id] || ''}
                     onChange={(e) => setResponses({ ...responses, [q.id]: e.target.value })}
@@ -299,16 +323,28 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
                 </div>
               )}
 
+              {q.type === 'body_pain' && (
+                <div className="ml-0 sm:ml-9">
+                  <BodyPainInput
+                    value={responses[q.id]}
+                    onChange={(v) => setResponses({ ...responses, [q.id]: v })}
+                    t={t}
+                    sex={athleteSex}
+                    scale={painScaleOf(q)}
+                  />
+                </div>
+              )}
+
               {q.type === 'select' && q.selectOptions?.choices && (
                 <div className="ml-0 sm:ml-9">
                   <p className="text-xs text-slate-400 mb-2">
-                    {q.selectOptions?.multiSelect ? 'Plusieurs choix possibles' : 'Un seul choix possible'}
+                    {q.selectOptions?.multiSelect ? t.multiChoice : t.singleChoice}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {q.selectOptions.choices.map((choice, choiceIndex) => {
                       const isBlack = choice.color?.toLowerCase() === '#000000' || choice.color?.toLowerCase() === '#000' || choice.color?.toLowerCase() === 'black';
                       const textColor = isBlack ? '#ffffff' : '#000000';
-                      const displayLabel = choice.label || `Choix ${choiceIndex + 1}`;
+                      const displayLabel = choice.label || `${t.choice} ${choiceIndex + 1}`;
                       const choiceKey = String(choiceIndex);
                       const currentSelection = Array.isArray(responses[q.id]) ? responses[q.id] : (responses[q.id] ? [responses[q.id]] : []);
                       const isSelected = currentSelection.includes(choiceKey);
@@ -382,12 +418,12 @@ export default function CustomQuestionnaireForm({ questionnaire, user, onComplet
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Envoi en cours...
+                  {t.submitting}
                 </>
               ) : (
                 <>
                   <CheckCircle className="w-5 h-5 mr-2" />
-                  Envoyer les réponses
+                  {t.submit}
                 </>
               )}
             </Button>

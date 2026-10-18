@@ -134,7 +134,7 @@ export default function CoachQuestionnaires() {
 
   // Compare deux questionnaires pour détecter de vraies modifications
   const hasRealChanges = (original, newData) => {
-    const fields = ['name', 'description', 'questions', 'style'];
+    const fields = ['name', 'description', 'questions', 'style', 'translations'];
     for (const field of fields) {
       if (JSON.stringify(original[field]) !== JSON.stringify(newData[field])) return true;
     }
@@ -180,6 +180,10 @@ export default function CoachQuestionnaires() {
                 questions: data.questions,
                 is_active: pendingMasterTemplate.is_active,
                 style: data.style ?? pendingMasterTemplate.style,
+                translations: data.translations ?? pendingMasterTemplate.translations ?? {},
+                // Langue de chaque athlète conservée pour ceux qui passent sur la copie
+                athlete_languages: Object.fromEntries(Object.entries(pendingMasterTemplate.athlete_languages || {})
+                  .filter(([email]) => coachOwnedAthletes.includes(email))),
                 created_by_email: user.email,
                 assigned_athletes: coachOwnedAthletes,
                 assigned_coaches: [user.email],

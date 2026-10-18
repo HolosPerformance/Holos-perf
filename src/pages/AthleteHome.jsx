@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase as base44 } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
+import { useBrandColors } from '@/hooks/useBranding';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -23,40 +24,22 @@ import {
 import { motion } from 'framer-motion';
 import DailyQuestionnaire from '../components/questionnaire/DailyQuestionnaire';
 import CustomQuestionnaireForm from '../components/questionnaire/CustomQuestionnaireForm';
+import { athleteLanguage, localizeTemplate } from '@/lib/questionnaireI18n';
 import AthleteDataChart from '../components/dashboard/AthleteDataChart';
 import EventCalendar from '../components/calendar/EventCalendar';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
-import { format, parseISO, subDays } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { questionnaireDay, previousQuestionnaireDay, responseDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-
-function getBrandColor() {
-  return document.documentElement.style.getPropertyValue('--brand-color') || null;
-}
-
-function getBrandSecondaryColor() {
-  return document.documentElement.style.getPropertyValue('--brand-secondary-color') || null;
-}
 
 export default function AthleteHome() {
   const { user } = useAuth();
   const [athleteFirstName, setAthleteFirstName] = useState(null);
   const [group, setGroup] = useState(null);
-  const [brandColor, setBrandColor] = useState(null);
-  const [brandSecondaryColor, setBrandSecondaryColor] = useState(null);
+  const { primary: brandColor, secondary: brandSecondaryColor } = useBrandColors();
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const color = getBrandColor();
-      const secondary = getBrandSecondaryColor();
-      if (color) setBrandColor(color);
-      if (secondary) setBrandSecondaryColor(secondary);
-      if (color && secondary) clearInterval(interval);
-    }, 300);
-    setTimeout(() => clearInterval(interval), 5000);
-    return () => clearInterval(interval);
-  }, []);
   const [view, setView] = useState('home'); // 'home', 'questionnaire', 'data'
   const [selectedQuestionnaireId, setSelectedQuestionnaireId] = useState(null);
   const [existingResponseId, setExistingResponseId] = useState(null);
@@ -106,7 +89,7 @@ export default function AthleteHome() {
   });
 
   const todayLog = trainingLogs.find(
-    log => log.training_date === format(new Date(), 'yyyy-MM-dd')
+    log => log.training_date === questionnaireDay()
   );
 
   const { data: assignedQuestionnaires = [] } = useQuery({
@@ -127,7 +110,7 @@ export default function AthleteHome() {
     queryKey: ['today-events', user?.email],
     queryFn: async () => {
       if (!user?.email) return [];
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const today = questionnaireDay();
       const allEvents = await base44.entities.Event.list();
       return allEvents.filter(event => 
         event.event_date === today &&
@@ -141,12 +124,12 @@ export default function AthleteHome() {
     queryKey: ['questionnaire-responses', user?.email],
     queryFn: async () => {
       if (!user?.email) return [];
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+      const today = questionnaireDay();
+      const yesterday = previousQuestionnaireDay();
       const allResponses = await base44.entities.QuestionnaireResponse.filter({
         athlete_email: user.email
       });
-      return allResponses.filter(r => r.submitted_date?.startsWith(today) || r.submitted_date?.startsWith(yesterday));
+      return allResponses.filter(r => responseDay(r) === today || responseDay(r) === yesterday);
     },
     enabled: !!user,
   });
@@ -328,13 +311,13 @@ export default function AthleteHome() {
 
         {/* Section Questionnaires */}
         {(() => {
-          const today = format(new Date(), 'yyyy-MM-dd');
-          const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+          const today = questionnaireDay();
+          const yesterday = previousQuestionnaireDay();
           const isYesterday = questionnaireSlide === 1;
           const activeDate = isYesterday ? yesterday : today;
 
-          const todayResponsesOnly = questionnaireResponses.filter(r => r.submitted_date?.startsWith(today));
-          const yesterdayResponsesOnly = questionnaireResponses.filter(r => r.submitted_date?.startsWith(yesterday));
+          const todayResponsesOnly = questionnaireResponses.filter(r => responseDay(r) === today);
+          const yesterdayResponsesOnly = questionnaireResponses.filter(r => responseDay(r) === yesterday);
           const activeResponses = isYesterday ? yesterdayResponsesOnly : todayResponsesOnly;
 
           // Questionnaire quotidien pour la date active
@@ -382,7 +365,7 @@ export default function AthleteHome() {
                     </button>
                     <span className="text-sm text-slate-400 ml-1">
                       {isYesterday
-                        ? format(subDays(new Date(), 1), 'dd MMM', { locale: fr })
+                        ? format(parseISO(previousQuestionnaireDay()), 'dd MMM', { locale: fr })
                         : "Aujourd'hui"}
                     </span>
                   </div>
@@ -404,11 +387,11 @@ export default function AthleteHome() {
                           <div className="flex-1">
                             <CardTitle className="flex items-center gap-2">
                               <ClipboardList className={`w-5 h-5 ${isYesterday ? 'text-amber-500' : 'text-blue-600'}`} />
-                              {assignedQuestionnaires[0]?.name || 'Questionnaire Quotidien'}
+                              {localizeTemplate(assignedQuestionnaires[0], athleteLanguage(assignedQuestionnaires[0], user?.email))?.name || 'Questionnaire Quotidien'}
                             </CardTitle>
                             <CardDescription>
                               {isYesterday
-                                ? `Questionnaire du ${format(subDays(new Date(), 1), 'dd MMMM', { locale: fr })}`
+                                ? `Questionnaire du ${format(parseISO(previousQuestionnaireDay()), 'dd MMMM', { locale: fr })}`
                                 : "Questionnaire quotidien"}
                             </CardDescription>
                           </div>
@@ -497,7 +480,7 @@ export default function AthleteHome() {
                         {linkedQuestionnaire && (
                           <div className="mt-3 p-3 bg-slate-50 rounded-lg">
                             <p className="text-sm font-medium text-slate-700 mb-2">
-                              Questionnaire lié: {linkedQuestionnaire.name}
+                              Questionnaire lié: {localizeTemplate(linkedQuestionnaire, athleteLanguage(linkedQuestionnaire, user?.email)).name}
                             </p>
                             {isEventFinished ? (
                               <Button

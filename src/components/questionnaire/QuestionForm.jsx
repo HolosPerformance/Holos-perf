@@ -5,6 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Save, X, Plus, Trash2 } from 'lucide-react';
+import { QuestionTranslations } from './TranslationControls';
+import PainScaleEditor, { withQuestionType } from './PainScaleEditor';
+
+const SCALE_DEFAULT = { min: 0, max: 100, reversed: false, showNumbers: false, minLabel: '0', maxLabel: '100', color: '#3b82f6' };
 
 const COLORS = [
   { name: 'Rouge', value: '#ea4335' }, { name: 'Orange', value: '#ff6d00' },
@@ -25,6 +29,8 @@ export default function QuestionForm({
   cancelEdit,
   previewValue,
   setPreviewValue,
+  languages = [],
+  onAddLanguage,
 }) {
   return (
     <div className={`space-y-4 p-4 rounded-lg ${isEditing ? 'mt-4 border-2 border-blue-300 bg-blue-50' : 'border-t pt-4 bg-slate-50'}`}>
@@ -48,7 +54,7 @@ export default function QuestionForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Type de réponse</Label>
-            <Select value={newQuestion.type} onValueChange={(v) => setNewQuestion({ ...newQuestion, type: v })}>
+            <Select value={newQuestion.type} onValueChange={(v) => setNewQuestion(withQuestionType(newQuestion, v, SCALE_DEFAULT))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="scale">Échelle (0-100)</SelectItem>
@@ -56,6 +62,7 @@ export default function QuestionForm({
                 <SelectItem value="textarea">Texte long</SelectItem>
                 <SelectItem value="number">Nombre</SelectItem>
                 <SelectItem value="select">Choix multiples</SelectItem>
+                <SelectItem value="body_pain">Zones douloureuses (schéma du corps)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -174,6 +181,11 @@ export default function QuestionForm({
           </div>
         )}
 
+        {/* Zones douloureuses : échelle d'intensité + aperçu */}
+        {newQuestion.type === 'body_pain' && (
+          <PainScaleEditor question={newQuestion} onChange={(scaleOptions) => setNewQuestion({ ...newQuestion, scaleOptions })} />
+        )}
+
         {/* Select options */}
         {newQuestion.type === 'select' && (
           <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-4">
@@ -190,7 +202,15 @@ export default function QuestionForm({
               <div key={ci} className="p-3 bg-white border rounded-lg space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Choix {ci + 1}</span>
-                  {ci >= 4 && <Button type="button" variant="ghost" size="sm" onClick={() => { const c = [...(newQuestion.selectOptions?.choices || [])]; c.splice(ci, 1); setNewQuestion({ ...newQuestion, selectOptions: { ...newQuestion.selectOptions, choices: c } }); }} className="text-red-600"><Trash2 className="w-4 h-4" /></Button>}
+                  {(newQuestion.selectOptions?.choices || []).length > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => {
+                    const c = [...(newQuestion.selectOptions?.choices || [])]; c.splice(ci, 1);
+                    // Garder les choix traduits alignés sur les choix d'origine
+                    const translations = Object.fromEntries(Object.entries(newQuestion.translations || {}).map(([lang, t]) => {
+                      const choices = [...(t.choices || [])]; choices.splice(ci, 1);
+                      return [lang, { ...t, choices }];
+                    }));
+                    setNewQuestion({ ...newQuestion, selectOptions: { ...newQuestion.selectOptions, choices: c }, translations });
+                  }} className="text-red-600"><Trash2 className="w-4 h-4" /></Button>}
                 </div>
                 <Input value={choice.label || ''} onChange={(e) => { const c = [...(newQuestion.selectOptions?.choices || [])]; c[ci] = { ...c[ci], label: e.target.value }; setNewQuestion({ ...newQuestion, selectOptions: { ...newQuestion.selectOptions, choices: c } }); }} placeholder="Ex: Très bien" />
                 <div className="flex flex-wrap gap-1">
@@ -206,6 +226,10 @@ export default function QuestionForm({
               <Plus className="w-4 h-4" />Nouveau choix
             </Button>
           </div>
+        )}
+
+        {onAddLanguage && (
+          <QuestionTranslations question={newQuestion} setQuestion={setNewQuestion} languages={languages} onAddLanguage={onAddLanguage} />
         )}
       </div>
       <div className="flex gap-2">

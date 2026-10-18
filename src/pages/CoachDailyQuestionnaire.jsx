@@ -7,11 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, CheckCircle, ClipboardList, User, ChevronRight, AlertCircle, Pencil } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { questionnaireDay, responseDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 
-const today = format(new Date(), 'yyyy-MM-dd');
+const today = questionnaireDay();
 
 export default function CoachDailyQuestionnaire() {
   const { user } = useAuth();
@@ -57,7 +58,7 @@ export default function CoachDailyQuestionnaire() {
     queryKey: ['today-responses-daily', today],
     queryFn: async () => {
       const all = await base44.entities.QuestionnaireResponse.list();
-      return all.filter(r => r.submitted_date?.startsWith(today));
+      return all.filter(r => responseDay(r) === today);
     },
     enabled: !!user
   });
@@ -166,7 +167,7 @@ export default function CoachDailyQuestionnaire() {
             <div>
               <h1 className="text-2xl font-bold text-slate-800">Répondre au questionnaire</h1>
               <p className="text-slate-500 text-sm capitalize">
-                {format(new Date(), 'EEEE d MMMM yyyy', { locale: fr })}
+                {format(parseISO(today), 'EEEE d MMMM yyyy', { locale: fr })}
               </p>
             </div>
           </div>

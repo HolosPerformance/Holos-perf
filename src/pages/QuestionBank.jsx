@@ -15,6 +15,10 @@ import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Plus, Edit2, Trash2, Save, X, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import PainScaleEditor, { withQuestionType, painScaleOptionsFor } from '@/components/questionnaire/PainScaleEditor';
+import { painScaleOf } from '@/lib/painZones';
+
+const SCALE_DEFAULT = { min: 0, max: 100, reversed: false, showNumbers: false, minLabel: '0', maxLabel: '100', color: '#3b82f6' };
 
 export default function QuestionBank() {
   const { user } = useAuth();
@@ -152,7 +156,7 @@ export default function QuestionBank() {
         minLabel: newQuestion.scaleOptions?.minLabel || '0',
         maxLabel: newQuestion.scaleOptions?.maxLabel || '100',
         color: newQuestion.scaleOptions?.color || '#3b82f6'
-      } : undefined
+      } : newQuestion.type === 'body_pain' ? painScaleOptionsFor(newQuestion) : undefined
     };
 
     if (editingQuestion) {
@@ -177,7 +181,7 @@ export default function QuestionBank() {
           { label: '', color: '#ea4335', image: '' }
         ]
       },
-      scaleOptions: question.scaleOptions || {
+      scaleOptions: question.type === 'body_pain' ? painScaleOptionsFor(question) : question.scaleOptions || {
         min: 0,
         max: 100,
         reversed: false,
@@ -275,7 +279,7 @@ export default function QuestionBank() {
                     <Label htmlFor="q-type">Type de réponse</Label>
                     <Select
                       value={newQuestion.type}
-                      onValueChange={(value) => setNewQuestion({ ...newQuestion, type: value })}
+                      onValueChange={(value) => setNewQuestion(withQuestionType(newQuestion, value, SCALE_DEFAULT))}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -286,6 +290,7 @@ export default function QuestionBank() {
                         <SelectItem value="textarea">Texte long</SelectItem>
                         <SelectItem value="number">Nombre</SelectItem>
                         <SelectItem value="select">Choix multiples</SelectItem>
+                        <SelectItem value="body_pain">Zones douloureuses (schéma du corps)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -493,6 +498,10 @@ export default function QuestionBank() {
                   </div>
                 )}
 
+                {newQuestion.type === 'body_pain' && (
+                  <PainScaleEditor question={newQuestion} onChange={(scaleOptions) => setNewQuestion({ ...newQuestion, scaleOptions })} />
+                )}
+
                 {newQuestion.type === 'select' && (
                   <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-4">
                     <h4 className="font-medium text-slate-800 text-sm">Options de choix multiples</h4>
@@ -509,7 +518,7 @@ export default function QuestionBank() {
                         <div key={index} className="p-3 bg-white border rounded-lg space-y-3">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-slate-700">Choix {index + 1}</span>
-                            {index >= 4 && (
+                            {(newQuestion.selectOptions?.choices || []).length > 1 && (
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -742,6 +751,15 @@ export default function QuestionBank() {
                           <span className="font-medium">{question.scaleOptions.maxLabel}</span>
                         </div>
                       )}
+
+                      {question.type === 'body_pain' && (() => {
+                        const sc = painScaleOf(question);
+                        return (
+                          <div className="mt-3 text-xs text-slate-600">
+                            Intensité de {sc.min} à {sc.max}{sc.minLabel || sc.maxLabel ? ` (${sc.minLabel || sc.min} → ${sc.maxLabel || sc.max})` : ''}{sc.showNumbers ? '' : ' · sans chiffres'}
+                          </div>
+                        );
+                      })()}
 
                       {/* Aperçu QCM */}
                       {question.type === 'select' && question.selectOptions?.choices && (

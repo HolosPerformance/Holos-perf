@@ -17,6 +17,7 @@ import {
   Activity, TrendingUp, Calendar, RefreshCw, ArrowLeft, Zap
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { questionnaireDay } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -244,7 +245,7 @@ export default function PersonalDashboard() {
       originalResponse: response,
       athlete_email: response.athlete_email,
       athlete_name: response.athlete_name,
-      training_date: format(submittedDate, 'yyyy-MM-dd'),
+      training_date: questionnaireDay(submittedDate),
       session_type: sessionType || 'inconnu',
       duration_minutes: null,
       ...transformedResponses
@@ -264,6 +265,11 @@ export default function PersonalDashboard() {
     const matchesSessionType = sessionTypeFilters.length === 0 || sessionTypeFilters.includes(log.session_type);
     return inDateRange && matchesSessionType;
   });
+
+  // Saisies antérieures à la période, pour amorcer les MME
+  const emaHistory = allMyLogs.filter(log =>
+    log.training_date < startDate &&
+    (sessionTypeFilters.length === 0 || sessionTypeFilters.includes(log.session_type)));
 
   // Add date labels
   const logsWithLabels = filteredLogs.map(log => ({
@@ -463,6 +469,8 @@ export default function PersonalDashboard() {
                     color={metricColors[key]}
                     startDate={startDate}
                     endDate={endDate}
+                    advancedStats={{ ema7: true, ema21: true }}
+                    emaHistory={emaHistory}
                   />
                 ))}
               </div>
