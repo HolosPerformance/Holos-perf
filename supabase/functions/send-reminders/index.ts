@@ -31,12 +31,43 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
+/**
+ * Le jeton présenté porte-t-il le rôle `service_role` ?
+ *
+ * Une simple égalité avec SUPABASE_SERVICE_ROLE_KEY ne suffit pas : Supabase
+ * émet plusieurs identifiants valides pour ce rôle — le JWT historique et le
+ * format `sb_secret_…` — et la variable d'environnement n'en contient qu'un.
+ * Comparer deux chaînes revenait donc à refuser l'autre, pourtant légitime.
+ *
+ * La signature du jeton n'est pas revérifiée ici : la plateforme l'a déjà fait
+ * en amont (`verify_jwt` actif sur la fonction). Désactiver ce réglage rendrait
+ * la revendication de rôle falsifiable — il doit rester activé.
+ */
+function estServiceRole(enTete: string): boolean {
+  const jeton = enTete.replace(/^Bearer\s+/i, '').trim();
+  if (!jeton) return false;
+
+  // Correspondance exacte avec le secret fourni par la plateforme, quel que soit son format.
+  if (SERVICE_ROLE_KEY && jeton === SERVICE_ROLE_KEY) return true;
+
+  // Sinon, JWT : on lit la revendication `role`.
+  const parties = jeton.split('.');
+  if (parties.length !== 3) return false;
+  try {
+    const charge = JSON.parse(
+      atob(parties[1].replace(/-/g, '+').replace(/_/g, '/')),
+    );
+    return charge?.role === 'service_role';
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   // Réservé au service role : le cron et les tests manuels, jamais un athlète.
-  const auth = req.headers.get('Authorization') || '';
-  if (auth !== `Bearer ${SERVICE_ROLE_KEY}`) {
+  if (!estServiceRole(req.headers.get('Authorization') || '')) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
