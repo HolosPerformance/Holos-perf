@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/AuthContext';
 import SideNav from '@/components/SideNav';
 import { Menu } from 'lucide-react';
 import { useBranding } from '@/hooks/useBranding';
-import { allClubIds } from '@/lib/questionnaireSlots';
+import { allClubIds, syncMyClubQuestionnaires } from '@/lib/questionnaireSlots';
 
 // ─── Bootstrap athlète (assignation questionnaires) ───────────────────────────
 async function bootstrapAthlete(userData) {
@@ -31,35 +31,29 @@ async function bootstrapAthlete(userData) {
       });
     }
 
-    // Assignation questionnaire par défaut si aucun assigné
     const defaultSetting = appSettings.find(s => s.key === 'default_athlete_questionnaire_id');
     const athleteClub    = clubs.find(c => (c.athlete_emails || []).includes(userData.email));
     const currentlyAssigned = templates.filter(
       t => t.is_active && (t.assigned_athletes || []).includes(userData.email)
     );
 
-    if (currentlyAssigned.length === 0) {
-      let targetTemplates = [];
+    // Questionnaires du club : toujours assignés, même si l'athlète a déjà des
+    // questionnaires individuels (fonction SQL, l'athlète ne pouvant pas
+    // modifier les questionnaires lui-même)
+    const clubHasQuestionnaires = allClubIds(athleteClub).length > 0;
+    if (athleteClub) await syncMyClubQuestionnaires();
 
-      if (athleteClub) {
-        const ids = allClubIds(athleteClub);
-        targetTemplates = ids.map(id => templates.find(t => t.id === id && t.is_active)).filter(Boolean);
-      }
+    // Sinon, questionnaire par défaut si aucun n'est assigné
+    if (currentlyAssigned.length === 0 && !clubHasQuestionnaires) {
+      const fallback = defaultSetting?.value
+        ? templates.find(t => t.id === defaultSetting.value && t.is_active)
+        : templates.find(t => t.name?.toLowerCase() === 'questionnaire standard' && t.is_active);
 
-      if (targetTemplates.length === 0) {
-        const fallback = defaultSetting?.value
-          ? templates.find(t => t.id === defaultSetting.value && t.is_active)
-          : templates.find(t => t.name?.toLowerCase() === 'questionnaire standard' && t.is_active);
-        if (fallback) targetTemplates.push(fallback);
-      }
-
-      for (const tmpl of targetTemplates) {
-        if (!(tmpl.assigned_athletes || []).includes(userData.email)) {
-          await base44.entities.QuestionnaireTemplate.update(tmpl.id, {
-            assigned_athletes:       [...(tmpl.assigned_athletes || []), userData.email],
-            auto_assigned_athletes:  [...(tmpl.auto_assigned_athletes || []), userData.email],
-          });
-        }
+      if (fallback && !(fallback.assigned_athletes || []).includes(userData.email)) {
+        await base44.entities.QuestionnaireTemplate.update(fallback.id, {
+          assigned_athletes:       [...(fallback.assigned_athletes || []), userData.email],
+          auto_assigned_athletes:  [...(fallback.auto_assigned_athletes || []), userData.email],
+        });
       }
     }
   } catch (err) {

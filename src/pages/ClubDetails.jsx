@@ -174,6 +174,14 @@ export default function ClubDetails() {
           can_access_objective_data_page: club.can_access_objective_data_page !== false,
         });
       }
+      // Assigner les questionnaires du club (matin et soir) au nouvel athlète
+      for (const id of allClubIds(club)) {
+        const tmpl = templates.find(t => t.id === id);
+        if (tmpl && !(tmpl.assigned_athletes || []).includes(email)) {
+          await base44.entities.QuestionnaireTemplate.update(id, { assigned_athletes: [...(tmpl.assigned_athletes || []), email] });
+        }
+      }
+      qc.invalidateQueries(['questionnaire-templates-club']);
     }
   };
 

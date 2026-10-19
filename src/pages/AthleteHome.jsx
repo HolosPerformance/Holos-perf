@@ -30,7 +30,7 @@ import EventCalendar from '../components/calendar/EventCalendar';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
 import { format, parseISO } from 'date-fns';
 import { questionnaireDay, previousQuestionnaireDay, responseDay } from '@/lib/questionnaireDay';
-import { SLOT_LABELS, clubMorningIds, clubEveningIds, teamMorningIds, teamEveningIds, currentSlot } from '@/lib/questionnaireSlots';
+import { SLOT_LABELS, athleteClubSlots, currentSlot, syncMyClubQuestionnaires } from '@/lib/questionnaireSlots';
 import { fr } from 'date-fns/locale';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -97,6 +97,8 @@ export default function AthleteHome() {
     queryKey: ['assigned-questionnaires', user?.email],
     queryFn: async () => {
       if (!user?.email) return [];
+      // S'assurer d'abord que l'athlète est assigné aux questionnaires de son club
+      await syncMyClubQuestionnaires();
       const allTemplates = await base44.entities.QuestionnaireTemplate.list();
       // Retourner uniquement les questionnaires actifs assignés à cet athlète
       return allTemplates.filter(t =>
@@ -107,8 +109,8 @@ export default function AthleteHome() {
     enabled: !!user,
   });
 
-  // Créneau (matin / soir) de chaque questionnaire, d'après le club et
-  // l'équipe de l'athlète. L'équipe l'emporte sur le club.
+  // Questionnaires du club de l'athlète et leur créneau (matin / soir) :
+  // ceux de son équipe si elle en a, sinon ceux du club
   const { data: questionnaireSlots = {} } = useQuery({
     queryKey: ['questionnaire-slots', user?.email],
     queryFn: async () => {
@@ -117,12 +119,11 @@ export default function AthleteHome() {
         base44.entities.Team.list().catch(() => []),
       ]);
       const club = clubs.find(c => (c.athlete_emails || []).includes(user.email));
-      const team = teams.find(t => (t.athlete_emails || []).includes(user.email));
+      const team = club && teams.find(t => t.club_id === club.id && (t.athlete_emails || []).includes(user.email));
+      const { morning, evening } = athleteClubSlots(club, team);
       const slots = {};
-      clubMorningIds(club).forEach(id => { slots[id] = 'morning'; });
-      clubEveningIds(club).forEach(id => { slots[id] = 'evening'; });
-      teamMorningIds(team).forEach(id => { slots[id] = 'morning'; });
-      teamEveningIds(team).forEach(id => { slots[id] = 'evening'; });
+      morning.forEach(id => { slots[id] = 'morning'; });
+      evening.forEach(id => { slots[id] = 'evening'; });
       return slots;
     },
     enabled: !!user?.email,
@@ -343,15 +344,19 @@ export default function AthleteHome() {
           const activeResponses = isYesterday ? yesterdayResponsesOnly : todayResponsesOnly;
 
           // Questionnaires quotidiens pour la date active, groupés par créneau :
-          // matin, puis soir, puis ceux sans créneau. Un questionnaire lié à une
-          // séance du jour remplace ceux de l'après-séance (soir et sans créneau).
+          // matin, puis soir. Les questionnaires du club passent en priorité :
+          // les questionnaires individuels ne s'affichent que si le club n'en a
+          // aucun. Un questionnaire lié à une séance du jour remplace ceux de
+          // l'après-séance (soir et sans créneau).
           const hasEventQuestionnaire = !isYesterday && todayEvents.some(e => !!e.questionnaire_template_id);
           const slotOf = (t) => questionnaireSlots[t.id] || 'other';
-          const hasSlots = assignedQuestionnaires.some(t => slotOf(t) !== 'other');
+          const clubQuestionnaires = assignedQuestionnaires.filter(t => slotOf(t) !== 'other');
+          const dailyQuestionnaires = clubQuestionnaires.length > 0 ? clubQuestionnaires : assignedQuestionnaires;
+          const hasSlots = clubQuestionnaires.length > 0;
           const highlightedSlot = isYesterday ? null : currentSlot();
           const dailyGroups = ['morning', 'evening', 'other']
             .filter(slot => slot === 'morning' || !hasEventQuestionnaire)
-            .map(slot => ({ slot, templates: assignedQuestionnaires.filter(t => slotOf(t) === slot) }))
+            .map(slot => ({ slot, templates: dailyQuestionnaires.filter(t => slotOf(t) === slot) }))
             .filter(group => group.templates.length > 0);
           const showDailyQuestionnaire = dailyGroups.length > 0;
 

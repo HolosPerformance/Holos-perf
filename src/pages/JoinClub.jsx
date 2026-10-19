@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Shield, CheckCircle, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { syncMyClubQuestionnaires } from '@/lib/questionnaireSlots';
 
 export default function JoinClub() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -45,6 +46,8 @@ export default function JoinClub() {
         [otherField]: otherCurrent
       });
     }
+    // Assigner les questionnaires du club au nouvel athlète
+    if (role === 'athlete') await syncMyClubQuestionnaires();
     setState('success');
   };
 

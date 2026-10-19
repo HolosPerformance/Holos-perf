@@ -1,3 +1,5 @@
+import { supabaseRaw } from '@/api/supabaseClient';
+
 // Créneaux de questionnaires d'un club ou d'une équipe : le matin (avant la
 // séance) et le soir (après l'entraînement). Un questionnaire n'appartient
 // qu'à un seul créneau.
@@ -59,4 +61,20 @@ export function toggleInSlot({ morning, evening }, templateId, slot) {
 export function currentSlot(date = new Date()) {
   const hour = date.getHours();
   return hour >= 5 && hour < EVENING_START_HOUR ? 'morning' : 'evening';
+}
+
+// Questionnaires du club qui s'appliquent à un athlète : ceux de son équipe
+// si elle en a, sinon ceux du club. Renvoie { morning, evening }.
+export function athleteClubSlots(club, team) {
+  if (allTeamIds(team).length > 0) {
+    return { morning: teamMorningIds(team), evening: teamEveningIds(team) };
+  }
+  return { morning: clubMorningIds(club), evening: clubEveningIds(club) };
+}
+
+// Ajoute l'athlète connecté aux questionnaires de son club ou de son équipe
+// (fonction SQL, l'athlète ne pouvant pas modifier les questionnaires).
+export async function syncMyClubQuestionnaires() {
+  const { error } = await supabaseRaw.rpc('sync_my_club_questionnaires');
+  if (error) console.warn('Assignation des questionnaires du club :', error.message);
 }
