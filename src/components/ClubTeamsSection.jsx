@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Users, Check, Star, Pencil, X, UserCheck, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
+import { SLOTS, SLOT_LABELS, clubMorningIds, clubEveningIds, allClubIds, teamMorningIds, teamEveningIds, allTeamIds, toggleInSlot } from '@/lib/questionnaireSlots';
 
 export default function ClubTeamsSection({ club, athletes, templates, currentUser, onClubUpdate }) {
   const qc = useQueryClient();
@@ -36,7 +37,7 @@ export default function ClubTeamsSection({ club, athletes, templates, currentUse
   });
 
   const createTeamMutation = useMutation({
-    mutationFn: (name) => base44.entities.Team.create({ name, club_id: club.id, athlete_emails: [], questionnaire_template_ids: [] }),
+    mutationFn: (name) => base44.entities.Team.create({ name, club_id: club.id, athlete_emails: [], questionnaire_template_ids: [], evening_questionnaire_template_ids: [] }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['teams', club.id] });
       setNewTeamName('');
@@ -70,7 +71,7 @@ export default function ClubTeamsSection({ club, athletes, templates, currentUse
 
   const deleteTeamMutation = useMutation({
     mutationFn: async (team) => {
-      for (const templateId of (team.questionnaire_template_ids || [])) {
+      for (const templateId of allTeamIds(team)) {
         const tmpl = templates.find(t => t.id === templateId);
         if (tmpl) {
           const filtered = (tmpl.assigned_athletes || []).filter(e => !(team.athlete_emails || []).includes(e));
@@ -88,7 +89,7 @@ export default function ClubTeamsSection({ club, athletes, templates, currentUse
   const moveAthlete = async (athleteEmail, targetTeamId) => {
     for (const team of teams) {
       if ((team.athlete_emails || []).includes(athleteEmail) && team.id !== targetTeamId) {
-        const prevQIds = team.questionnaire_template_ids || [];
+        const prevQIds = allTeamIds(team);
         for (const qId of prevQIds) {
           const tmpl = templates.find(t => t.id === qId);
           if (tmpl) {
@@ -105,7 +106,7 @@ export default function ClubTeamsSection({ club, athletes, templates, currentUse
     if (targetTeamId) {
       const target = teams.find(t => t.id === targetTeamId);
       if (target && !(target.athlete_emails || []).includes(athleteEmail)) {
-        for (const qId of (target.questionnaire_template_ids || [])) {
+        for (const qId of allTeamIds(target)) {
           const tmpl = templates.find(t => t.id === qId);
           if (tmpl && !(tmpl.assigned_athletes || []).includes(athleteEmail)) {
             await base44.entities.QuestionnaireTemplate.update(qId, {
@@ -123,15 +124,16 @@ export default function ClubTeamsSection({ club, athletes, templates, currentUse
     toast.success('Athlète déplacé');
   };
 
-  const toggleTeamQuestionnaire = async (team, templateId) => {
-    const current = team.questionnaire_template_ids || [];
-    const isSelected = current.includes(templateId);
-    const newIds = isSelected ? current.filter(id => id !== templateId) : [...current, templateId];
-    await base44.entities.Team.update(team.id, { questionnaire_template_ids: newIds });
+  const toggleTeamQuestionnaire = async (team, templateId, slot) => {
+    const wasAssigned = allTeamIds(team).includes(templateId);
+    const { morning, evening } = toggleInSlot({ morning: teamMorningIds(team), evening: teamEveningIds(team) }, templateId, slot);
+    await base44.entities.Team.update(team.id, { questionnaire_template_ids: morning, evening_questionnaire_template_ids: evening });
+    const isRemoved = wasAssigned && !morning.includes(templateId) && !evening.includes(templateId);
     const tmpl = templates.find(t => t.id === templateId);
-    if (tmpl) {
+    // Passer d'un créneau à l'autre ne change pas l'assignation
+    if (tmpl && wasAssigned !== (morning.includes(templateId) || evening.includes(templateId))) {
       const teamAthletes = team.athlete_emails || [];
-      if (isSelected) {
+      if (isRemoved) {
         await base44.entities.QuestionnaireTemplate.update(templateId, {
           assigned_athletes: (tmpl.assigned_athletes || []).filter(e => !teamAthletes.includes(e))
         });
@@ -146,16 +148,22 @@ export default function ClubTeamsSection({ club, athletes, templates, currentUse
     toast.success('Questionnaire mis à jour');
   };
 
-  const toggleMainTeamQuestionnaire = async (templateId) => {
-    const currentIds = club.default_questionnaire_template_ids || [];
-    const isSelected = currentIds.includes(templateId);
-    const newIds = isSelected ? currentIds.filter(id => id !== templateId) : [...currentIds, templateId];
-    await base44.entities.Club.update(club.id, { default_questionnaire_template_ids: newIds });
+  const toggleMainTeamQuestionnaire = async (templateId, slot) => {
+    const wasAssigned = allClubIds(club).includes(templateId);
+    const { morning, evening } = toggleInSlot({ morning: clubMorningIds(club), evening: clubEveningIds(club) }, templateId, slot);
+    await base44.entities.Club.update(club.id, {
+      default_questionnaire_template_ids: morning,
+      default_questionnaire_template_id: morning[0] || null,
+      evening_questionnaire_template_ids: evening,
+    });
+    qc.invalidateQueries({ queryKey: ['club', club.id] });
+    const isRemoved = wasAssigned && !morning.includes(templateId) && !evening.includes(templateId);
     const tmpl = templates.find(t => t.id === templateId);
-    if (tmpl) {
+    // Passer d'un créneau à l'autre ne change pas l'assignation
+    if (tmpl && wasAssigned !== (morning.includes(templateId) || evening.includes(templateId))) {
       const athletesInTeamsSet = new Set(teams.flatMap(t => t.athlete_emails || []));
       const mainAthletes = athletes.filter(a => !athletesInTeamsSet.has(a.email)).map(a => a.email);
-      if (isSelected) {
+      if (isRemoved) {
         await base44.entities.QuestionnaireTemplate.update(templateId, {
           assigned_athletes: (tmpl.assigned_athletes || []).filter(e => !mainAthletes.includes(e))
         });
@@ -204,7 +212,7 @@ export default function ClubTeamsSection({ club, athletes, templates, currentUse
       // Retirer de l'équipe et des questionnaires de l'équipe
       for (const team of teams) {
         if ((team.athlete_emails || []).includes(athleteEmail)) {
-          for (const qId of (team.questionnaire_template_ids || [])) {
+          for (const qId of allTeamIds(team)) {
             const tmpl = templates.find(t => t.id === qId);
             if (tmpl) {
               await base44.entities.QuestionnaireTemplate.update(qId, {
@@ -218,7 +226,7 @@ export default function ClubTeamsSection({ club, athletes, templates, currentUse
         }
       }
       // Retirer des questionnaires de l'équipe principale
-      for (const qId of (club.default_questionnaire_template_ids || [])) {
+      for (const qId of allClubIds(club)) {
         const tmpl = templates.find(t => t.id === qId);
         if (tmpl) {
           await base44.entities.QuestionnaireTemplate.update(qId, {
@@ -243,7 +251,7 @@ export default function ClubTeamsSection({ club, athletes, templates, currentUse
 
   const getAthleteTeam = (athleteEmail) => teams.find(t => (t.athlete_emails || []).includes(athleteEmail)) || null;
 
-  const mainQIds = club.default_questionnaire_template_ids || [];
+  const mainQIds = { morning: clubMorningIds(club), evening: clubEveningIds(club) };
 
   const allColumns = [
     { colId: '__main__', name: club.main_team_name || 'Équipe principale', isMain: true, athletes: mainTeamAthletes },
@@ -374,9 +382,11 @@ function TeamColumn({ col, coaches, teams, activeTemplates, isDragging, mainQIds
   const [showQuestionnaires, setShowQuestionnaires] = useState(false);
   const { colId, name, isMain, team, athletes } = col;
   const isEditingName = isMain ? editingMainTeamName : editingTeamId === team?.id;
-  const selectedQIds = isMain ? (mainQIds || []) : (team?.questionnaire_template_ids || []);
+  const selectedQIds = isMain ? mainQIds : { morning: teamMorningIds(team), evening: teamEveningIds(team) };
 
-  const selectedQNames = activeTemplates.filter(t => selectedQIds.includes(t.id)).map(t => t.name);
+  const selectedQBadges = SLOTS.flatMap(slot =>
+    activeTemplates.filter(t => selectedQIds[slot].includes(t.id)).map(t => ({ key: `${slot}-${t.id}`, label: `${SLOT_LABELS[slot].icon} ${t.name}` }))
+  );
 
   return (
     <Card className={`border shadow-sm flex flex-col transition-all ${isDragging ? 'border-slate-300 shadow-md' : 'border-slate-200'}`}>
@@ -425,31 +435,38 @@ function TeamColumn({ col, coaches, teams, activeTemplates, isDragging, mainQIds
           )}
         </CardTitle>
 
-        {selectedQNames.length > 0 && (
+        {selectedQBadges.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
-            {selectedQNames.map(n => <Badge key={n} variant="outline" className="text-xs">{n}</Badge>)}
+            {selectedQBadges.map(b => <Badge key={b.key} variant="outline" className="text-xs">{b.label}</Badge>)}
           </div>
         )}
       </CardHeader>
 
       {showQuestionnaires && (
         <div className="px-4 pb-3 border-t border-slate-100">
-          <p className="text-xs text-slate-500 my-2">Questionnaires :</p>
-          <div className="space-y-1">
-            {activeTemplates.map(t => {
-              const isSelected = selectedQIds.includes(t.id);
-              return (
-                <button key={t.id} onClick={() => isMain ? onToggleMainQuestionnaire(t.id) : onToggleQuestionnaire(team, t.id)}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg border text-left text-xs transition-all ${isSelected ? 'border-slate-700 bg-slate-50 font-medium' : 'border-slate-200 hover:border-slate-300 text-slate-500'}`}
-                >
-                  <div className={`w-3.5 h-3.5 rounded flex-shrink-0 border-2 flex items-center justify-center ${isSelected ? 'border-slate-700 bg-slate-700' : 'border-slate-300'}`}>
-                    {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
-                  </div>
-                  {t.name}
-                </button>
-              );
-            })}
-          </div>
+          {SLOTS.map(slot => (
+            <div key={slot}>
+              <p className="text-xs font-medium text-slate-600 my-2">
+                {SLOT_LABELS[slot].icon} {SLOT_LABELS[slot].title}
+                <span className="ml-1 font-normal text-slate-400">({SLOT_LABELS[slot].hint})</span>
+              </p>
+              <div className="space-y-1">
+                {activeTemplates.map(t => {
+                  const isSelected = selectedQIds[slot].includes(t.id);
+                  return (
+                    <button key={t.id} onClick={() => isMain ? onToggleMainQuestionnaire(t.id, slot) : onToggleQuestionnaire(team, t.id, slot)}
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg border text-left text-xs transition-all ${isSelected ? 'border-slate-700 bg-slate-50 font-medium' : 'border-slate-200 hover:border-slate-300 text-slate-500'}`}
+                    >
+                      <div className={`w-3.5 h-3.5 rounded flex-shrink-0 border-2 flex items-center justify-center ${isSelected ? 'border-slate-700 bg-slate-700' : 'border-slate-300'}`}>
+                        {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                      </div>
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

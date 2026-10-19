@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Upload, Link as LinkIcon, Copy, Check, Trash2, UserPlus, X, ClipboardList, ShieldCheck, Eye, EyeOff, ListChecks } from 'lucide-react';
+import { ArrowLeft, Upload, Link as LinkIcon, Copy, Check, Trash2, UserPlus, X, ClipboardList, ShieldCheck, Eye, EyeOff, ListChecks, Search } from 'lucide-react';
 import ClubTeamsSection from '@/components/ClubTeamsSection';
 import ColorPicker from '@/components/ui/ColorPicker';
 import { Switch } from '@/components/ui/switch';
@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toast } from "sonner";
+import { SLOTS, SLOT_LABELS, clubMorningIds, clubEveningIds, allClubIds, toggleInSlot } from '@/lib/questionnaireSlots';
 
 function hexToHsl(hex) {
   if (!hex || !hex.startsWith('#')) return null;
@@ -35,6 +36,11 @@ function hexToHsl(hex) {
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
 
+// Minuscules sans accents, pour la recherche
+function normalize(text) {
+  return (text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
 function generateToken() {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
@@ -49,7 +55,9 @@ export default function ClubDetails() {
   const [form, setForm] = useState({ name: '', primary_color: '#1e293b', secondary_color: '#ffffff' });
   const [savingQuestionnaire, setSavingQuestionnaire] = useState(false);
   const [savingAccess, setSavingAccess] = useState(false);
-  const [selectedTemplateIds, setSelectedTemplateIds] = useState([]);
+  const [slotIds, setSlotIds] = useState({ morning: [], evening: [] });
+  const [memberSearch, setMemberSearch] = useState('');
+  const [memberRoleFilter, setMemberRoleFilter] = useState('all');
   const [logoFile, setLogoFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -85,16 +93,14 @@ export default function ClubDetails() {
         primary_color: club.primary_color || '#1e293b',
         secondary_color: club.secondary_color || '#ffffff',
       });
-      // Initialiser les questionnaires sélectionnés (migration depuis l'ancien champ)
-      const ids = club.default_questionnaire_template_ids?.length
-        ? club.default_questionnaire_template_ids
-        : club.default_questionnaire_template_id
-          ? [club.default_questionnaire_template_id]
-          : [];
-      setSelectedTemplateIds(ids);
       setInitialized(true);
     }
   }, [club, initialized]);
+
+  // Questionnaires du matin et du soir (aussi modifiables depuis l'équipe principale)
+  useEffect(() => {
+    if (club) setSlotIds({ morning: clubMorningIds(club), evening: clubEveningIds(club) });
+  }, [club]);
 
   const updateMutation = useMutation({
     mutationFn: (data) => base44.entities.Club.update(clubId, data),
@@ -168,6 +174,14 @@ export default function ClubDetails() {
           can_access_objective_data_page: club.can_access_objective_data_page !== false,
         });
       }
+      // Assigner les questionnaires du club (matin et soir) au nouvel athlète
+      for (const id of allClubIds(club)) {
+        const tmpl = templates.find(t => t.id === id);
+        if (tmpl && !(tmpl.assigned_athletes || []).includes(email)) {
+          await base44.entities.QuestionnaireTemplate.update(id, { assigned_athletes: [...(tmpl.assigned_athletes || []), email] });
+        }
+      }
+      qc.invalidateQueries(['questionnaire-templates-club']);
     }
   };
 
@@ -188,26 +202,26 @@ export default function ClubDetails() {
     await updateMutation.mutateAsync({ invite_links: currentLinks });
   };
 
-  const toggleQuestionnaire = async (templateId) => {
-    const currentIds = selectedTemplateIds;
-    const newIds = currentIds.includes(templateId)
-      ? currentIds.filter(id => id !== templateId)
-      : [...currentIds, templateId];
-    setSelectedTemplateIds(newIds);
-    await handleSaveQuestionnaires(newIds);
+  const toggleQuestionnaire = async (templateId, slot) => {
+    const newSlots = toggleInSlot(slotIds, templateId, slot);
+    setSlotIds(newSlots);
+    await handleSaveQuestionnaires(newSlots);
   };
 
-  const handleSaveQuestionnaires = async (newIds) => {
+  const handleSaveQuestionnaires = async ({ morning, evening }) => {
     setSavingQuestionnaire(true);
     const athleteEmails = club.athlete_emails || [];
-    const prevIds = club.default_questionnaire_template_ids?.length
-      ? club.default_questionnaire_template_ids
-      : club.default_questionnaire_template_id
-        ? [club.default_questionnaire_template_id]
-        : [];
+    // Le créneau ne change pas l'assignation : seuls les questionnaires
+    // ajoutés au club ou retirés du club modifient les athlètes assignés
+    const prevIds = allClubIds(club);
+    const newIds = Array.from(new Set([...morning, ...evening]));
 
     // Mettre à jour le club
-    await updateMutation.mutateAsync({ default_questionnaire_template_ids: newIds, default_questionnaire_template_id: newIds[0] || null });
+    await updateMutation.mutateAsync({
+      default_questionnaire_template_ids: morning,
+      default_questionnaire_template_id: morning[0] || null,
+      evening_questionnaire_template_ids: evening,
+    });
 
     // Ajouter les athlètes aux nouveaux questionnaires
     for (const id of newIds) {
@@ -252,6 +266,15 @@ export default function ClubDetails() {
   const availableToAdd = allUsers.filter(u =>
     u.user_status === 'coach' || u.user_status === 'coach_pro' || u.user_status === 'athlete'
   ).filter(u => !(club.coach_emails || []).includes(u.email) && !(club.athlete_emails || []).includes(u.email));
+  const searchTerm = normalize(memberSearch.trim());
+  const filteredToAdd = availableToAdd.filter(u => {
+    const isCoachUser = u.user_status === 'coach' || u.user_status === 'coach_pro';
+    if (memberRoleFilter === 'athlete' && isCoachUser) return false;
+    if (memberRoleFilter === 'coach' && !isCoachUser) return false;
+    if (!searchTerm) return true;
+    return normalize(u.full_name).includes(searchTerm) || normalize(u.email).includes(searchTerm);
+  });
+  const activeTemplates = templates.filter(t => t.is_active);
 
   return (
     <div className="min-h-screen p-4 md:p-8">
@@ -400,34 +423,40 @@ export default function ClubDetails() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-xs text-slate-500">Les questionnaires sélectionnés seront automatiquement assignés à tous les athlètes du club.</p>
-                  <div className="space-y-2">
-                    {templates.filter(t => t.is_active).map(t => {
-                      const isSelected = selectedTemplateIds.includes(t.id);
-                      return (
-                        <button
-                          key={t.id}
-                          onClick={() => toggleQuestionnaire(t.id)}
-                          disabled={savingQuestionnaire}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-all ${
-                            isSelected
-                              ? 'border-slate-700 bg-slate-50 text-slate-800'
-                              : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                          }`}
-                        >
-                          <div className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${
-                            isSelected ? 'border-slate-700 bg-slate-700' : 'border-slate-300'
-                          }`}>
-                            {isSelected && <Check className="w-3 h-3 text-white" />}
-                          </div>
-                          <span className="text-sm font-medium">{t.name}</span>
-                        </button>
-                      );
-                    })}
-                    {templates.filter(t => t.is_active).length === 0 && (
-                      <p className="text-xs text-slate-400 text-center py-2">Aucun questionnaire actif disponible</p>
-                    )}
-                  </div>
+                  <p className="text-xs text-slate-500">Les questionnaires sélectionnés seront automatiquement assignés à tous les athlètes du club. Les athlètes voient le questionnaire du matin en premier, puis celui du soir.</p>
+                  {SLOTS.map(slot => (
+                    <div key={slot} className="space-y-2">
+                      <p className="text-sm font-semibold text-slate-700">
+                        {SLOT_LABELS[slot].icon} {SLOT_LABELS[slot].title}
+                        <span className="ml-1 text-xs font-normal text-slate-400">({SLOT_LABELS[slot].hint})</span>
+                      </p>
+                      {activeTemplates.map(t => {
+                        const isSelected = slotIds[slot].includes(t.id);
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => toggleQuestionnaire(t.id, slot)}
+                            disabled={savingQuestionnaire}
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-all ${
+                              isSelected
+                                ? 'border-slate-700 bg-slate-50 text-slate-800'
+                                : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                            }`}
+                          >
+                            <div className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${
+                              isSelected ? 'border-slate-700 bg-slate-700' : 'border-slate-300'
+                            }`}>
+                              {isSelected && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <span className="text-sm font-medium">{t.name}</span>
+                          </button>
+                        );
+                      })}
+                      {activeTemplates.length === 0 && (
+                        <p className="text-xs text-slate-400 text-center py-2">Aucun questionnaire actif disponible</p>
+                      )}
+                    </div>
+                  ))}
                   {savingQuestionnaire && <p className="text-xs text-slate-400">Mise à jour des assignations...</p>}
                 </CardContent>
               </Card>
@@ -526,9 +555,41 @@ export default function ClubDetails() {
             {currentUser?.user_status === 'admin' && availableToAdd.length > 0 && (
               <Card className="border-0 shadow-sm">
                 <CardHeader><CardTitle className="text-base">Ajouter des membres existants</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {availableToAdd.map(u => (
+                <CardContent className="space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Input
+                        value={memberSearch}
+                        onChange={e => setMemberSearch(e.target.value)}
+                        placeholder="Rechercher par nom ou email…"
+                        className="pl-9 pr-8"
+                      />
+                      {memberSearch && (
+                        <button onClick={() => setMemberSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      {[['all', 'Tous'], ['athlete', 'Athlètes'], ['coach', 'Entraîneurs']].map(([value, label]) => (
+                        <Button
+                          key={value}
+                          size="sm"
+                          variant={memberRoleFilter === value ? 'default' : 'outline'}
+                          onClick={() => setMemberRoleFilter(value)}
+                          className="h-9 text-xs"
+                        >
+                          {label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto space-y-1">
+                    {filteredToAdd.length === 0 && (
+                      <p className="text-sm text-slate-400 text-center py-4">Aucun résultat</p>
+                    )}
+                    {filteredToAdd.map(u => (
                       <div key={u.email} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50">
                         <div>
                           <span className="font-medium text-slate-700 text-sm">{u.full_name}</span>
