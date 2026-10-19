@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/AuthContext';
 import SideNav from '@/components/SideNav';
 import { Menu } from 'lucide-react';
 import { useBranding } from '@/hooks/useBranding';
+import { allClubIds } from '@/lib/questionnaireSlots';
 
 // ─── Bootstrap athlète (assignation questionnaires) ───────────────────────────
 async function bootstrapAthlete(userData) {
@@ -41,10 +42,7 @@ async function bootstrapAthlete(userData) {
       let targetTemplates = [];
 
       if (athleteClub) {
-        const ids = athleteClub.default_questionnaire_template_ids?.length
-          ? athleteClub.default_questionnaire_template_ids
-          : athleteClub.default_questionnaire_template_id
-            ? [athleteClub.default_questionnaire_template_id] : [];
+        const ids = allClubIds(athleteClub);
         targetTemplates = ids.map(id => templates.find(t => t.id === id && t.is_active)).filter(Boolean);
       }
 

@@ -13,6 +13,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import CoachQuestionnaireAssignment from '../components/questionnaire/CoachQuestionnaireAssignment';
 import QuestionnaireEditorFull from '../components/questionnaire/QuestionnaireEditorFull';
+import { allClubIds } from '@/lib/questionnaireSlots';
 
 export default function CoachQuestionnaires() {
   const { user } = useAuth();
@@ -36,11 +37,7 @@ export default function CoachQuestionnaires() {
 
       const coachClubs = isIndividualView ? [] : clubs.filter(c => (c.coach_emails || []).includes(user.email));
       const clubTemplateIds = new Set(
-        coachClubs.flatMap(c =>
-          c.default_questionnaire_template_ids?.length
-            ? c.default_questionnaire_template_ids
-            : c.default_questionnaire_template_id ? [c.default_questionnaire_template_id] : []
-        )
+        coachClubs.flatMap(c => allClubIds(c))
       );
 
       const coachGroups = groups.filter(g => g.coach_email === user.email);

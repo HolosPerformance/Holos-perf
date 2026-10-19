@@ -30,6 +30,7 @@ import EventCalendar from '../components/calendar/EventCalendar';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
 import { format, parseISO } from 'date-fns';
 import { questionnaireDay, previousQuestionnaireDay, responseDay } from '@/lib/questionnaireDay';
+import { SLOT_LABELS, clubMorningIds, clubEveningIds, teamMorningIds, teamEveningIds, currentSlot } from '@/lib/questionnaireSlots';
 import { fr } from 'date-fns/locale';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -104,6 +105,27 @@ export default function AthleteHome() {
       );
     },
     enabled: !!user,
+  });
+
+  // Créneau (matin / soir) de chaque questionnaire, d'après le club et
+  // l'équipe de l'athlète. L'équipe l'emporte sur le club.
+  const { data: questionnaireSlots = {} } = useQuery({
+    queryKey: ['questionnaire-slots', user?.email],
+    queryFn: async () => {
+      const [clubs, teams] = await Promise.all([
+        base44.entities.Club.list(),
+        base44.entities.Team.list().catch(() => []),
+      ]);
+      const club = clubs.find(c => (c.athlete_emails || []).includes(user.email));
+      const team = teams.find(t => (t.athlete_emails || []).includes(user.email));
+      const slots = {};
+      clubMorningIds(club).forEach(id => { slots[id] = 'morning'; });
+      clubEveningIds(club).forEach(id => { slots[id] = 'evening'; });
+      teamMorningIds(team).forEach(id => { slots[id] = 'morning'; });
+      teamEveningIds(team).forEach(id => { slots[id] = 'evening'; });
+      return slots;
+    },
+    enabled: !!user?.email,
   });
 
   const { data: todayEvents = [] } = useQuery({
@@ -320,13 +342,18 @@ export default function AthleteHome() {
           const yesterdayResponsesOnly = questionnaireResponses.filter(r => responseDay(r) === yesterday);
           const activeResponses = isYesterday ? yesterdayResponsesOnly : todayResponsesOnly;
 
-          // Questionnaire quotidien pour la date active
+          // Questionnaires quotidiens pour la date active, groupés par créneau :
+          // matin, puis soir, puis ceux sans créneau. Un questionnaire lié à une
+          // séance du jour remplace ceux de l'après-séance (soir et sans créneau).
           const hasEventQuestionnaire = !isYesterday && todayEvents.some(e => !!e.questionnaire_template_id);
-          const showDailyQuestionnaire = assignedQuestionnaires.length > 0 && !hasEventQuestionnaire;
-
-          const todayAlreadyAnswered = assignedQuestionnaires.length > 0 && todayResponsesOnly.some(r => r.template_id === assignedQuestionnaires[0]?.id && !r.event_id);
-          const yesterdayAlreadyAnswered = assignedQuestionnaires.length > 0 && yesterdayResponsesOnly.some(r => r.template_id === assignedQuestionnaires[0]?.id && !r.event_id);
-          const activeAlreadyAnswered = isYesterday ? yesterdayAlreadyAnswered : todayAlreadyAnswered;
+          const slotOf = (t) => questionnaireSlots[t.id] || 'other';
+          const hasSlots = assignedQuestionnaires.some(t => slotOf(t) !== 'other');
+          const highlightedSlot = isYesterday ? null : currentSlot();
+          const dailyGroups = ['morning', 'evening', 'other']
+            .filter(slot => slot === 'morning' || !hasEventQuestionnaire)
+            .map(slot => ({ slot, templates: assignedQuestionnaires.filter(t => slotOf(t) === slot) }))
+            .filter(group => group.templates.length > 0);
+          const showDailyQuestionnaire = dailyGroups.length > 0;
 
           const hasAnyContent = assignedQuestionnaires.length > 0 || todayEvents.length > 0;
 
@@ -373,26 +400,48 @@ export default function AthleteHome() {
               </div>
 
               <div className="space-y-4">
-                {/* Questionnaire quotidien */}
-                {showDailyQuestionnaire && (
+                {/* Questionnaires quotidiens : matin, soir, puis sans créneau */}
+                {dailyGroups.map(({ slot, templates: slotTemplates }) => {
+                  const isHighlighted = slot === highlightedSlot;
+                  const isDimmed = !!highlightedSlot && slot !== 'other' && !isHighlighted;
+                  return (
                   <motion.div
-                    key={`daily-${questionnaireSlide}`}
+                    key={`daily-${slot}-${questionnaireSlide}`}
                     initial={{ opacity: 0, x: isYesterday ? -20 : 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2 }}
+                    className="space-y-3"
                   >
-                    <Card className={`border-2 ${isYesterday ? 'border-amber-200' : 'border-blue-200'}`}>
+                    {hasSlots && (
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-slate-700">
+                          {slot === 'other'
+                            ? 'Autres questionnaires'
+                            : `${SLOT_LABELS[slot].icon} Questionnaire du ${slot === 'morning' ? 'matin' : 'soir'}`}
+                        </h3>
+                        {slot !== 'other' && (
+                          <span className="text-sm text-slate-400">· {SLOT_LABELS[slot].hint}</span>
+                        )}
+                        {isHighlighted && (
+                          <span className="ml-auto px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">Maintenant</span>
+                        )}
+                      </div>
+                    )}
+                    {slotTemplates.map(template => {
+                      const activeAlreadyAnswered = activeResponses.some(r => r.template_id === template.id && !r.event_id);
+                      return (
+                    <Card key={template.id} className={`border-2 ${isYesterday ? 'border-amber-200' : isDimmed ? 'border-slate-200' : 'border-blue-200'}`}>
                       <CardHeader>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <CardTitle className="flex items-center gap-2">
                               <ClipboardList className={`w-5 h-5 ${isYesterday ? 'text-amber-500' : 'text-blue-600'}`} />
-                              {localizeTemplate(assignedQuestionnaires[0], athleteLanguage(assignedQuestionnaires[0], user?.email))?.name || 'Questionnaire Quotidien'}
+                              {localizeTemplate(template, athleteLanguage(template, user?.email))?.name || 'Questionnaire Quotidien'}
                             </CardTitle>
                             <CardDescription>
                               {isYesterday
                                 ? `Questionnaire du ${format(parseISO(previousQuestionnaireDay()), 'dd MMMM', { locale: fr })}`
-                                : "Questionnaire quotidien"}
+                                : slot === 'other' ? "Questionnaire quotidien" : `Questionnaire du ${slot === 'morning' ? 'matin' : 'soir'}`}
                             </CardDescription>
                           </div>
                           {activeAlreadyAnswered ? (
@@ -411,20 +460,24 @@ export default function AthleteHome() {
                       <CardContent>
                         <Button
                           onClick={() => {
-                            const existingResponse = activeResponses.find(r => r.template_id === assignedQuestionnaires[0]?.id && !r.event_id);
-                            setSelectedQuestionnaireId(assignedQuestionnaires[0]?.id);
+                            const existingResponse = activeResponses.find(r => r.template_id === template.id && !r.event_id);
+                            setSelectedQuestionnaireId(template.id);
                             setExistingResponseId(existingResponse?.id || null);
                             setSelectedResponseDate(isYesterday ? yesterday : null);
                             setView('questionnaire');
                           }}
+                          variant={isDimmed ? 'outline' : 'default'}
                           className={`w-full ${isYesterday ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
                         >
                           {activeAlreadyAnswered ? 'Modifier ma réponse' : 'Répondre au questionnaire'}
                         </Button>
                       </CardContent>
                     </Card>
+                      );
+                    })}
                   </motion.div>
-                )}
+                  );
+                })}
 
                 {/* Séances du jour (seulement pour aujourd'hui) */}
                 {!isYesterday && todayEvents.map((event) => {
