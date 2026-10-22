@@ -320,6 +320,11 @@ export default function SettingsPage() {
         </Card>
       )}
 
+      {/* Connexion Strava (athlètes) */}
+      {!isCoach && user?.email && (
+        <StravaConnect userEmail={user.email} />
+      )}
+
       {/* Notifications push (athlètes) */}
       {!isCoach && user?.email && (
         <PushNotificationSetup athleteEmail={user.email} />
