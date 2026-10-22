@@ -21,8 +21,13 @@ export default function StravaConnect({ userEmail }) {
 
   const handleConnect = async () => {
     setConnecting(true);
-    const res = await base44.functions.invoke('initStravaAuth', {});
-    window.location.href = res.data.authUrl;
+    try {
+      const res = await base44.functions.invoke('initStravaAuth', {});
+      window.location.href = res.data.authUrl;
+    } catch (err) {
+      setConnecting(false);
+      toast.error(err.message || 'Connexion à Strava impossible.');
+    }
   };
 
   const handleDisconnect = async () => {
@@ -52,15 +57,15 @@ export default function StravaConnect({ userEmail }) {
         ) : stravaToken ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {stravaToken.strava_profile_picture && (
-                <img src={stravaToken.strava_profile_picture} alt="Strava" className="w-10 h-10 rounded-full" />
+              {stravaToken.profile_picture && (
+                <img src={stravaToken.profile_picture} alt="Strava" className="w-10 h-10 rounded-full" />
               )}
               <div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-500" />
                   <p className="font-medium text-slate-800 text-sm">Compte connecté</p>
                 </div>
-                <p className="text-xs text-slate-500">{stravaToken.strava_athlete_name}</p>
+                <p className="text-xs text-slate-500">{stravaToken.athlete_name}</p>
               </div>
             </div>
             <Button
