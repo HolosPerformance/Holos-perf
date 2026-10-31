@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import ColorPicker from '@/components/ui/ColorPicker';
 import { analyzeNetwork, analyzeEfa, forceLayout } from '@/lib/psychometrics';
+import { matchesSessionTypes } from '@/lib/sessionTypes';
 import NetworkGraph from './NetworkGraph';
 import { FACTOR_PALETTE } from './EfaPanel';
 import {
@@ -40,7 +41,7 @@ function analyzePair(logsA, logsB, keys, labels, settings) {
 }
 
 const filterSide = (logs, side) => logs.filter(l =>
-  l.training_date >= side.startDate && l.training_date <= side.endDate && side.sessionTypes.includes(l.session_type));
+  l.training_date >= side.startDate && l.training_date <= side.endDate && matchesSessionTypes(l, side.sessionTypes));
 
 export default function NetworkPanel({
   periodLogs, athleteLogs, metricLabels, metricColors, sessionTypeLabels, globalFilters,

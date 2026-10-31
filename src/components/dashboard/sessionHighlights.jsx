@@ -1,4 +1,5 @@
 import React from 'react';
+import { sessionTypesOf } from '@/lib/sessionTypes';
 
 // Mise en évidence de types de séance sur les graphiques du dashboard : une
 // bande verticale colorée derrière chaque jour où le type a eu lieu. Ce n'est
@@ -43,10 +44,10 @@ export function buildHighlightDays(logs, types) {
     if (!day) return;
     const who = log.athlete_email || log.id;
     (athletesByDay[day] = athletesByDay[day] || new Set()).add(who);
-    if (keys.has(log.session_type)) {
+    sessionTypesOf(log).filter(type => keys.has(type)).forEach(type => {
       const byType = (typeAthletesByDay[day] = typeAthletesByDay[day] || {});
-      (byType[log.session_type] = byType[log.session_type] || new Set()).add(who);
-    }
+      (byType[type] = byType[type] || new Set()).add(who);
+    });
   });
   const days = {};
   Object.entries(typeAthletesByDay).forEach(([day, byType]) => {

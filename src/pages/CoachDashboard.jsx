@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
 import { questionnaireDay } from '@/lib/questionnaireDay';
+import { selectedChoiceLabels, sessionTypesOf, matchesSessionTypes } from '@/lib/sessionTypes';
 import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -277,26 +278,20 @@ export default function CoachDashboard() {
             }
           });
         }
-        const firstQuestionId = responseTemplate?.questions?.[0]?.id;
         const firstQuestion = responseTemplate?.questions?.[0];
         const hasSelectFirstQuestion = firstQuestion?.type === 'select';
-        let sessionType = null;
-        if (hasSelectFirstQuestion && firstQuestionId) {
-          const rawVal = response.responses?.[firstQuestionId];
-          if (rawVal !== undefined && rawVal !== null) {
-            const choices = firstQuestion?.selectOptions?.choices || [];
-            const singleVal = Array.isArray(rawVal) ? rawVal[0] : rawVal;
-            const idx = parseInt(singleVal, 10);
-            sessionType = (!isNaN(idx) && choices[idx]) ? choices[idx].label : singleVal;
-          }
-        }
+        // Tous les types de séance cochés, pas seulement le premier
+        const sessionTypes = hasSelectFirstQuestion
+          ? selectedChoiceLabels(response.responses?.[firstQuestion.id], firstQuestion)
+          : [];
         return {
           id: response.id,
           athlete_email: response.athlete_email,
           athlete_name: response.athlete_name,
           training_date: questionnaireDay(submittedDate),
           template_id: response.template_id,
-          session_type: sessionType || (hasSelectFirstQuestion ? 'inconnu' : 'questionnaire'),
+          session_type: sessionTypes[0] || (hasSelectFirstQuestion ? 'inconnu' : 'questionnaire'),
+          session_types: sessionTypes,
           duration_minutes: null,
           ...transformedResponses
         };
@@ -664,7 +659,7 @@ export default function CoachDashboard() {
   const filteredLogs = userFilteredLogs.filter(log => {
     const logDate = parseISO(log.training_date);
     const inDateRange = logDate >= dateRange.start && logDate <= dateRange.end;
-    const matchesSessionType = sessionTypeFilters.includes(log.session_type);
+    const matchesSessionType = matchesSessionTypes(log, sessionTypeFilters);
     return inDateRange && matchesSessionType && isInAthletePeriod(activeAthletePeriods, log);
   });
 
@@ -749,7 +744,7 @@ export default function CoachDashboard() {
     const limit = selectedAthleteEmails.length <= 1
       ? athletePeriodStart(activeAthletePeriods, log.athlete_email, startDate)
       : startDate;
-    return log.training_date < limit && sessionTypeFilters.includes(log.session_type);
+    return log.training_date < limit && matchesSessionTypes(log, sessionTypeFilters);
   }), false);
 
   const logsWithLabels = processedLogs;
@@ -769,7 +764,7 @@ export default function CoachDashboard() {
   );
   const analysisPeriodLogs = useMemo(
     () => analysisAthleteLogs.filter(log =>
-      log.training_date >= startDate && log.training_date <= endDate && sessionTypeFilters.includes(log.session_type)
+      log.training_date >= startDate && log.training_date <= endDate && matchesSessionTypes(log, sessionTypeFilters)
       && isInAthletePeriod(activeAthletePeriods, log)),
     [analysisAthleteLogs, startDate, endDate, sessionTypeFilters, activeAthletePeriods]
   );
@@ -936,7 +931,7 @@ export default function CoachDashboard() {
 
   // Types proposés à la mise en évidence : ceux présents dans les saisies des
   // athlètes sélectionnés (hors « Questionnaire » / « Autre », qui n'en sont pas)
-  const presentSessionTypes = new Set(userFilteredLogs.map(l => l.session_type));
+  const presentSessionTypes = new Set(userFilteredLogs.flatMap(sessionTypesOf));
   const highlightableTypes = Object.entries(dynamicSessionTypes.labels)
     .filter(([key]) => key !== 'questionnaire' && key !== 'inconnu' && presentSessionTypes.has(key));
   const highlightTypeColors = highlightColors(highlightableTypes);
