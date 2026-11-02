@@ -11,9 +11,14 @@ import { PeriodCoverageLine } from './AthletePeriodsPanel';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
+    // Types de séance cochés par l'athlète (saisie individuelle uniquement)
+    const sessionTypes = payload[0]?.payload?.session_types || [];
     return (
       <div className="bg-white p-4 rounded-xl shadow-lg border border-slate-100 max-w-xs">
         <p className="font-medium text-slate-800 mb-2">{label}</p>
+        {sessionTypes.length > 0 && (
+          <p className="text-xs text-slate-500 -mt-1 mb-2">{sessionTypes.join(' + ')}</p>
+        )}
         <div className="space-y-1">
           {payload.map((entry, index) => (
             <p key={index} className="text-sm flex justify-between gap-4" style={{ color: entry.color }}>

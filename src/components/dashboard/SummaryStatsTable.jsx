@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { parseISO, differenceInDays } from 'date-fns';
+import { matchesSessionTypes } from '@/lib/sessionTypes';
 
 const calculateStats = (values) => {
   if (values.length === 0) return null;
@@ -40,7 +41,7 @@ export default function SummaryStatsTable({ data, metricLabels = {}, metricColor
 
   const filteredData = data.filter(log => {
     const logDate = parseISO(log.training_date);
-    const matchesSessionType = sessionTypeFilters.includes(log.session_type);
+    const matchesSessionType = matchesSessionTypes(log, sessionTypeFilters);
     
     if (!startDate || !endDate) return matchesSessionType;
     
