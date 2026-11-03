@@ -5,7 +5,7 @@ import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { calculateEMA, historyValues, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { getChartStyle, xAxisInterval } from './chartStyle';
+import { getChartStyle, xAxisInterval, valueAxis } from './chartStyle';
 import { HighlightBands, HighlightLegend, HighlightTooltipLines } from './sessionHighlights';
 import { PeriodCoverageLine } from './AthletePeriodsPanel';
 
@@ -119,6 +119,14 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
   const colorOf = (metric, index) => metricConfig?.[metric]?.color || chartColors[index % chartColors.length];
   const nameOf = (metric) => metricConfig?.[metric]?.name || metric;
 
+  // Axe adapté aux valeurs affichées (courbes, MME, tendances, statistiques)
+  // et à l'échelle des questions sélectionnées
+  const plottedKeys = selectedMetrics.flatMap(m => [m, `${m}__trend`, ...emaDefs.map(def => `${m}__${def.key}`)]);
+  const yAxis = valueAxis(
+    [...chartData.flatMap(point => plottedKeys.map(k => point[k])), ...statLines.map(l => l.value)],
+    Math.max(0, ...selectedMetrics.map(m => Number(metricConfig?.[m]?.scaleMax) || 0))
+  );
+
   // Légende limitée à 2 lignes, défilable au-delà, pour que les nombreuses
   // séries de statistiques n'écrasent pas le graphique (sauf à l'export, où
   // elle est affichée en entier).
@@ -154,8 +162,8 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
               tick={style.axisTick}
               stroke={style.axisLineColor}
               tickLine={false}
-              domain={[0, 100]}
-              allowDataOverflow
+              domain={yAxis.domain}
+              ticks={yAxis.ticks}
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={legendStyle} />
