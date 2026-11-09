@@ -208,29 +208,35 @@ export default function CoachDashboard() {
     enabled: !!user?.email && isCoach,
   });
 
-  const { data: assignedTemplates = [] } = useQuery({
+  const { data: templateScope } = useQuery({
     queryKey: ['coach-templates', user?.email, coachGroup?.id, coachClub?.id],
     queryFn: async () => {
-      if (!user?.email || (!isCoach && !isAdmin)) return [];
+      if (!user?.email || (!isCoach && !isAdmin)) return { assigned: [], archivedIds: [] };
+      const templates = await base44.entities.QuestionnaireTemplate.list();
+      // Les réponses des questionnaires archivés sont masquées du dashboard, pour tous
+      const archivedIds = templates.filter(isArchived).map(t => t.id);
+      const live = templates.filter(t => !isArchived(t));
       if (isAdmin) {
-        const templates = await base44.entities.QuestionnaireTemplate.list();
-        // Les questionnaires archivés restent pris en compte : leur historique doit rester visible
-        return templates.filter(t => t.is_active !== false || isArchived(t));
+        return { assigned: live.filter(t => t.is_active !== false), archivedIds };
       }
       // Pour un coach : tous les templates assignés à ses athlètes (groupe + club)
-      const templates = await base44.entities.QuestionnaireTemplate.list();
       const coachAthleteEmails = [
         ...(coachGroup?.athlete_emails || []),
         ...(coachClub?.athlete_emails || []),
       ];
       const uniqueEmails = [...new Set(coachAthleteEmails)];
-      return templates.filter(t =>
-        t.assigned_coaches?.includes(user.email) ||
-        uniqueEmails.some(email => t.assigned_athletes?.includes(email))
-      );
+      return {
+        assigned: live.filter(t =>
+          t.assigned_coaches?.includes(user.email) ||
+          uniqueEmails.some(email => t.assigned_athletes?.includes(email))
+        ),
+        archivedIds,
+      };
     },
     enabled: !!user && (isCoach || isAdmin),
   });
+  const assignedTemplates = useMemo(() => templateScope?.assigned || [], [templateScope]);
+  const archivedTemplateIds = useMemo(() => templateScope?.archivedIds || [], [templateScope]);
 
   // Athlètes dont on charge les saisies : uniquement ceux sélectionnés (rien
   // n'est affiché sans sélection), restreints au groupe/club pour un coach.
@@ -247,13 +253,15 @@ export default function CoachDashboard() {
   }, [isAdmin, isCoach, selectedAthleteEmails, coachGroup, coachClub]);
 
   const { data: realLogs = [], isLoading, refetch } = useQuery({
-    queryKey: ['questionnaire-responses-coach', user?.email, fetchedAthleteEmails.join(','), assignedTemplates.map(t => t.id).join(',')],
+    queryKey: ['questionnaire-responses-coach', user?.email, fetchedAthleteEmails.join(','), assignedTemplates.map(t => t.id).join(','), archivedTemplateIds.join(',')],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       let filteredResponses;
       if (isAdmin || isCoach) {
         if (fetchedAthleteEmails.length === 0) return [];
         filteredResponses = await base44.entities.QuestionnaireResponse.filterIn('athlete_email', fetchedAthleteEmails, '-submitted_date');
+        // Sans ce filtre, les réponses d'un coach compteraient comme des saisies vides
+        filteredResponses = filteredResponses.filter(r => !archivedTemplateIds.includes(r.template_id));
         if (isAdmin) {
           const templateIds = assignedTemplates.map(t => t.id);
           if (templateIds.length > 0) filteredResponses = filteredResponses.filter(r => templateIds.includes(r.template_id));
@@ -301,7 +309,8 @@ export default function CoachDashboard() {
         };
       });
     },
-    enabled: !!user && (isAdmin || isCoach),
+    // Attend la liste des archivés, pour ne jamais afficher leurs réponses
+    enabled: !!user && (isAdmin || isCoach) && !!templateScope,
   });
 
   const { data: rawTrainingLogs = [] } = useQuery({

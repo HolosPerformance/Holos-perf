@@ -16,7 +16,7 @@ export default function ArchivedQuestionnaires({ templates, onRestore, restoring
         </h2>
       </div>
       <p className="text-sm text-slate-500 mb-4">
-        Questionnaires supprimés par les entraîneurs ou les administrateurs. Leurs réponses sont conservées.
+        Questionnaires supprimés par les entraîneurs ou les administrateurs. Leurs réponses sont conservées, mais masquées du dashboard tant qu'ils ne sont pas restaurés.
       </p>
 
       {templates.length === 0 ? (

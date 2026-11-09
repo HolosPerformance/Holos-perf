@@ -101,6 +101,7 @@ export default function Questionnaires() {
     mutationFn: (id) => base44.entities.QuestionnaireTemplate.update(id, archivePayload(user.email)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['questionnaire-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-templates'] });
       toast.success('Questionnaire archivé');
     },
     onError: () => toast.error("Impossible d'archiver ce questionnaire"),
@@ -110,6 +111,7 @@ export default function Questionnaires() {
     mutationFn: (id) => base44.entities.QuestionnaireTemplate.update(id, RESTORE_PAYLOAD),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['questionnaire-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-templates'] });
       toast.success('Questionnaire restauré');
     },
     onError: () => toast.error('Impossible de restaurer ce questionnaire'),
@@ -119,13 +121,13 @@ export default function Questionnaires() {
     const warning = template.id === defaultQuestionnaireId
       ? "\n\nAttention : c'est le questionnaire par défaut. Pensez à en définir un autre pour les nouveaux athlètes."
       : '';
-    if (confirm(`Archiver ce questionnaire ? Il disparaîtra pour les entraîneurs et les athlètes. Ses réponses sont conservées et vous pourrez le restaurer.${warning}`)) {
+    if (confirm(`Archiver ce questionnaire ? Il disparaîtra pour les entraîneurs et les athlètes, et sera retiré des séances à venir. Ses réponses sont conservées mais masquées du dashboard. Vous pourrez le restaurer.${warning}`)) {
       archiveMutation.mutate(template.id);
     }
   };
 
   const confirmRestore = (template) => {
-    if (confirm(`Restaurer « ${template.name} » ? Il redeviendra actif et les athlètes qui y sont assignés y auront de nouveau accès.`)) {
+    if (confirm(`Restaurer « ${template.name} » ? Il redeviendra actif, ses réponses réapparaîtront dans le dashboard et les athlètes qui y sont assignés y auront de nouveau accès. Il ne sera pas remis automatiquement sur les séances à venir.`)) {
       restoreMutation.mutate(template.id);
     }
   };

@@ -113,7 +113,11 @@ export default function CoachQuestionnaires() {
   // archivé : ses réponses restent liées et un administrateur peut le restaurer
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.QuestionnaireTemplate.update(id, archivePayload(user.email)),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['coach-questionnaire-templates'] }); toast.success('Questionnaire supprimé'); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['coach-questionnaire-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-templates'] });
+      toast.success('Questionnaire supprimé');
+    },
     onError: () => toast.error('Impossible de supprimer ce questionnaire'),
   });
 
