@@ -18,6 +18,7 @@ import { createPageUrl } from '@/utils';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
+import { isArchived } from '@/lib/questionnaireArchive';
 
 export default function UserManagement() {
   // ── Utiliser useAuth() au lieu de recharger l'utilisateur ─────────────────
@@ -52,7 +53,7 @@ export default function UserManagement() {
 
   const { data: questionnaires = [] } = useQuery({
     queryKey: ['questionnaires'],
-    queryFn: () => base44.entities.QuestionnaireTemplate.list(),
+    queryFn: async () => (await base44.entities.QuestionnaireTemplate.list()).filter(q => !isArchived(q)),
     enabled: !!user,
   });
 

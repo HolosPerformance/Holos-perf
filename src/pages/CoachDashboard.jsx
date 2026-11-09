@@ -29,6 +29,7 @@ import {
 import PainEvolution, { collectPainEntries } from '../components/dashboard/PainEvolution';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
 import { questionnaireDay } from '@/lib/questionnaireDay';
+import { isArchived } from '@/lib/questionnaireArchive';
 import { selectedChoiceLabels, sessionTypesOf, matchesSessionTypes } from '@/lib/sessionTypes';
 import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -213,7 +214,8 @@ export default function CoachDashboard() {
       if (!user?.email || (!isCoach && !isAdmin)) return [];
       if (isAdmin) {
         const templates = await base44.entities.QuestionnaireTemplate.list();
-        return templates.filter(t => t.is_active !== false);
+        // Les questionnaires archivés restent pris en compte : leur historique doit rester visible
+        return templates.filter(t => t.is_active !== false || isArchived(t));
       }
       // Pour un coach : tous les templates assignés à ses athlètes (groupe + club)
       const templates = await base44.entities.QuestionnaireTemplate.list();
