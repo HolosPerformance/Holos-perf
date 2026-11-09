@@ -102,13 +102,13 @@ export default function ObjectiveData() {
   const urlParams = new URLSearchParams(window.location.search);
   const isIndividualView = urlParams.get('view') === 'individual';
 
-  // Utiliser user_id pour la correspondance (plus fiable que l'email)
-  const connectedUserIds = new Set(stravaTokens.map(t => t.user_id).filter(Boolean));
+  // L'email est la clé de rapprochement : `strava_tokens.athlete_email` est
+  // unique, et c'est ce que les fonctions Strava utilisent côté serveur.
   const connectedEmails = new Set(stravaTokens.map(t => t.athlete_email));
 
   const selectableAthletes = (() => {
     if (isAdmin) {
-      return allUsers.filter(u => u.user_status === 'athlete' && (connectedUserIds.has(u.id) || connectedEmails.has(u.email)))
+      return allUsers.filter(u => u.user_status === 'athlete' && connectedEmails.has(u.email))
         .map(u => ({ email: u.email, name: u.full_name || u.email, id: u.id }));
     } else if (isCoach) {
       let emails = [];
@@ -123,7 +123,7 @@ export default function ObjectiveData() {
           const u = allUsers.find(u => u.email === email);
           return u ? { email, name: u.full_name || email, id: u.id } : null;
         })
-        .filter(a => a && (connectedUserIds.has(a.id) || connectedEmails.has(a.email)));
+        .filter(a => a && connectedEmails.has(a.email));
     }
     return [];
   })();
@@ -150,13 +150,11 @@ export default function ObjectiveData() {
       }
       const allActivities = [];
       for (const email of targetEmails) {
-        const athlete = selectableAthletes.find(a => a.email === email);
         const res = await base44.functions.invoke('getStravaActivities', {
           start_date: startDate,
           end_date: endDate,
           per_page: 200,
           athlete_email: email || undefined,
-          user_id: athlete?.id || undefined,
         });
         if (!res.data?.not_connected && !res.data?.error) {
           const raw = res.data?.activities || [];
