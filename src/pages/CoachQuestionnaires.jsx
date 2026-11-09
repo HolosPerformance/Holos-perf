@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import CoachQuestionnaireAssignment from '../components/questionnaire/CoachQuestionnaireAssignment';
 import QuestionnaireEditorFull from '../components/questionnaire/QuestionnaireEditorFull';
 import { allClubIds } from '@/lib/questionnaireSlots';
+import { isArchived, archivePayload } from '@/lib/questionnaireArchive';
 
 export default function CoachQuestionnaires() {
   const { user } = useAuth();
@@ -48,9 +49,10 @@ export default function CoachQuestionnaires() {
       );
 
       // IDs des masters pour lesquels le coach a déjà une copie personnalisée
+      // (une copie qu'il a supprimée ne compte plus : le master redevient visible)
       const coachCopyParentIds = new Set(
         allTemplates
-          .filter(t => t.is_master_template === false && t.assigned_to_coach_email === user.email)
+          .filter(t => t.is_master_template === false && t.assigned_to_coach_email === user.email && !isArchived(t))
           .map(t => t.parent_master_template_id)
           .filter(Boolean)
       );
@@ -107,9 +109,16 @@ export default function CoachQuestionnaires() {
     setView('edit');
   };
 
+  // Présenté à l'entraîneur comme une suppression, mais le questionnaire est
+  // archivé : ses réponses restent liées et un administrateur peut le restaurer
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.QuestionnaireTemplate.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['coach-questionnaire-templates'] }); toast.success('Questionnaire supprimé'); },
+    mutationFn: (id) => base44.entities.QuestionnaireTemplate.update(id, archivePayload(user.email)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['coach-questionnaire-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-templates'] });
+      toast.success('Questionnaire supprimé');
+    },
+    onError: () => toast.error('Impossible de supprimer ce questionnaire'),
   });
 
   const duplicateMutation = useMutation({

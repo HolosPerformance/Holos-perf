@@ -7,12 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { ArrowLeft, Plus, Edit2, Trash2, BarChart3, Calendar, Copy, ClipboardList, Star } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Archive, BarChart3, Calendar, Copy, ClipboardList, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import QuestionnaireAssignmentCard from '../components/questionnaire/QuestionnaireAssignmentCard';
 import QuestionnaireEditorFull from '../components/questionnaire/QuestionnaireEditorFull';
+import ArchivedQuestionnaires from '../components/questionnaire/ArchivedQuestionnaires';
 import { useAuth } from '@/lib/AuthContext';
+import { isArchived, archivePayload, RESTORE_PAYLOAD } from '@/lib/questionnaireArchive';
 
 export default function Questionnaires() {
   const { user } = useAuth();
@@ -52,11 +54,14 @@ export default function Questionnaires() {
 
   const { data: templates = [] } = useQuery({
     queryKey: ['questionnaire-templates'],
-    queryFn: () => base44.entities.QuestionnaireTemplate.list('-created_at', 100),
+    queryFn: () => base44.entities.QuestionnaireTemplate.list('-created_at'),
     enabled: !!user,
   });
 
-  const accessibleTemplates = templates.filter(template => {
+  // Les archivés n'apparaissent que dans la partie dédiée, pour les administrateurs
+  const liveTemplates = templates.filter(t => !isArchived(t));
+
+  const accessibleTemplates = liveTemplates.filter(template => {
     if (isAdmin) return true;
     if (isCoach) {
       return template.created_by_email === user?.email ||
@@ -68,6 +73,10 @@ export default function Questionnaires() {
   const filteredTemplates = accessibleTemplates.filter(t =>
     t.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const archivedTemplates = isAdmin
+    ? templates.filter(t => isArchived(t) && t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : [];
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.QuestionnaireTemplate.create(data),
@@ -88,13 +97,40 @@ export default function Questionnaires() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.QuestionnaireTemplate.delete(id),
+  const archiveMutation = useMutation({
+    mutationFn: (id) => base44.entities.QuestionnaireTemplate.update(id, archivePayload(user.email)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['questionnaire-templates'] });
-      toast.success('Questionnaire supprimé');
+      queryClient.invalidateQueries({ queryKey: ['coach-templates'] });
+      toast.success('Questionnaire archivé');
     },
+    onError: () => toast.error("Impossible d'archiver ce questionnaire"),
   });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id) => base44.entities.QuestionnaireTemplate.update(id, RESTORE_PAYLOAD),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['questionnaire-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-templates'] });
+      toast.success('Questionnaire restauré');
+    },
+    onError: () => toast.error('Impossible de restaurer ce questionnaire'),
+  });
+
+  const confirmArchive = (template) => {
+    const warning = template.id === defaultQuestionnaireId
+      ? "\n\nAttention : c'est le questionnaire par défaut. Pensez à en définir un autre pour les nouveaux athlètes."
+      : '';
+    if (confirm(`Archiver ce questionnaire ? Il disparaîtra pour les entraîneurs et les athlètes, et sera retiré des séances à venir. Ses réponses sont conservées mais masquées du dashboard. Vous pourrez le restaurer.${warning}`)) {
+      archiveMutation.mutate(template.id);
+    }
+  };
+
+  const confirmRestore = (template) => {
+    if (confirm(`Restaurer « ${template.name} » ? Il redeviendra actif, ses réponses réapparaîtront dans le dashboard et les athlètes qui y sont assignés y auront de nouveau accès. Il ne sera pas remis automatiquement sur les séances à venir.`)) {
+      restoreMutation.mutate(template.id);
+    }
+  };
 
   const duplicateMutation = useMutation({
     mutationFn: (template) => {
@@ -198,8 +234,8 @@ export default function Questionnaires() {
                           <Button variant="outline" size="icon" className="text-blue-600 hover:bg-blue-50" onClick={() => duplicateMutation.mutate(template)} title="Dupliquer">
                             <Copy className="w-4 h-4" />
                           </Button>
-                          <Button variant="outline" size="icon" className="text-red-600 hover:bg-red-50" onClick={() => { if (confirm('Supprimer ce questionnaire ?')) deleteMutation.mutate(template.id); }}>
-                            <Trash2 className="w-4 h-4" />
+                          <Button variant="outline" size="icon" className="text-red-600 hover:bg-red-50" onClick={() => confirmArchive(template)} title="Archiver">
+                            <Archive className="w-4 h-4" />
                           </Button>
                         </>
                       )}
@@ -217,18 +253,18 @@ export default function Questionnaires() {
                     )}
                   </div>
                 </CardContent>
-                {isAdmin && <QuestionnaireAssignmentCard template={template} allTemplates={templates} onEditCopy={(copy) => { setSelectedTemplate(copy); setView('edit'); }} />}
+                {isAdmin && <QuestionnaireAssignmentCard template={template} allTemplates={liveTemplates} onEditCopy={(copy) => { setSelectedTemplate(copy); setView('edit'); }} />}
               </Card>
             </motion.div>
           ))}
 
-          {filteredTemplates.length === 0 && templates.length > 0 && (
+          {filteredTemplates.length === 0 && liveTemplates.length > 0 && (
             <div className="lg:col-span-2">
               <Card><CardContent className="py-12 text-center"><p className="text-slate-500 text-sm">Aucun questionnaire ne correspond à votre recherche</p></CardContent></Card>
             </div>
           )}
 
-          {templates.length === 0 && (
+          {liveTemplates.length === 0 && (
             <div className="lg:col-span-1">
               <Card><CardContent className="py-12 text-center">
                 <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-4" />
@@ -237,6 +273,10 @@ export default function Questionnaires() {
             </div>
           )}
         </div>
+
+        {isAdmin && (
+          <ArchivedQuestionnaires templates={archivedTemplates} onRestore={confirmRestore} restoring={restoreMutation.isPending} />
+        )}
       </div>
     </div>
   );

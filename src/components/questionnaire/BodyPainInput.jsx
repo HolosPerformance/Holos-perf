@@ -233,3 +233,43 @@ export default function BodyPainInput({ value, onChange, t, sex, scale = PAIN_SC
     </div>
   );
 }
+
+/**
+ * Silhouette miniature en lecture seule (dashboard) : zones douloureuses
+ * colorées selon l'intensité. Affiche la face qui porte des douleurs (devant,
+ * derrière, ou les deux côte à côte). `value` : { [zoneId]: intensité }.
+ */
+export function PainBodyThumb({ value, scale = PAIN_SCALE_DEFAULT, sex, className = 'w-12 h-24' }) {
+  const uid = useId().replace(/:/g, '');
+  const zones = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const ids = Object.keys(zones).filter(id => isPainZoneOn(zones[id]));
+  const views = ['front', 'back'].filter(v => ids.some(id => viewsOf(id).includes(v)));
+  const shown = views.length > 0 ? views : ['front'];
+  const arts = BODY_ART[sex === 'femme' ? 'female' : 'male'];
+  return (
+    <div className="flex items-end gap-0.5">
+      {shown.map(view => {
+        const art = arts[view];
+        return (
+          <svg key={view} viewBox={art.viewBox} className={className} aria-label={view === 'front' ? 'Devant' : 'Derrière'}>
+            <defs>
+              <filter id={`thumb-blur-${uid}-${view}`} x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9" /></filter>
+            </defs>
+            {art.zones.filter(z => !z.hairOnly).flatMap(z => z.d.map((d, i) => (
+              <path key={`${z.id}-${i}`} d={d} fill={SKIN} stroke={INK} strokeWidth="4" strokeLinejoin="round" />
+            )))}
+            {art.hair.map((d, i) => <path key={`hair-${i}`} d={d} fill={INK} fillOpacity="0.55" stroke={INK} strokeWidth="4" />)}
+            <g filter={`url(#thumb-blur-${uid}-${view})`}>
+              {art.zones.filter(z => isPainZoneOn(zones[z.id])).flatMap(z => z.d.map((d, i) => (
+                <path key={`${z.id}-${i}`} d={d} fill={intensityColor(zones[z.id], scale)} opacity="0.9" />
+              )))}
+              {art.joints.filter(j => isPainZoneOn(zones[j.id])).map(j => (
+                <circle key={j.id} cx={j.cx} cy={j.cy} r={j.r * 1.3} fill={intensityColor(zones[j.id], scale)} opacity="0.95" />
+              ))}
+            </g>
+          </svg>
+        );
+      })}
+    </div>
+  );
+}

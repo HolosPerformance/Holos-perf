@@ -4,15 +4,15 @@ import { supabase as base44 } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Activity, HeartPulse, Search, User, ChevronRight, Check, AlertTriangle } from 'lucide-react';
+import { Activity, HeartPulse, User, ChevronRight, Check, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/medical/StatusBadge';
 import InjuryForm from '@/components/medical/InjuryForm';
 import MedicalAthleteSheet from '@/components/medical/MedicalAthleteSheet';
 import MarkerTrendsTable from '@/components/medical/MarkerTrendsTable';
 import PainReports from '@/components/medical/PainReports';
+import AthleteMultiSelect from '@/components/medical/AthleteMultiSelect';
 import { extractMarkerData, athleteTrends, shiftDay, TRENDS_LOOKBACK_DAYS } from '@/lib/markerTrends';
 import { questionnaireDay } from '@/lib/questionnaireDay';
 import { formatPainIntensity } from '@/lib/painZones';
@@ -30,7 +30,7 @@ export default function MedicalPage() {
   const isCoach = user?.user_status === 'coach' || user?.user_status === 'coach_pro';
   const isStaff = isAdmin || isCoach;
 
-  const [search, setSearch] = useState('');
+  const [excludedAthleteEmails, setExcludedAthleteEmails] = useState([]); // athlètes décochés (aucun = tous)
   const [statusFilter, setStatusFilter] = useState('all');
   const [scopeFilter, setScopeFilter] = useState('all'); // 'all' | club:<id> | group:<id>
   const [excludedTeamIds, setExcludedTeamIds] = useState([]); // équipes décochées (aucune = toutes)
@@ -98,7 +98,7 @@ export default function MedicalPage() {
   const toggleTeam = (id) => setExcludedTeamIds(prev =>
     prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
   const toggleAllTeams = () => setExcludedTeamIds(allTeamsSelected ? teamOptions.map(t => t.id) : []);
-  const changeScope = (value) => { setScopeFilter(value); setExcludedTeamIds([]); };
+  const changeScope = (value) => { setScopeFilter(value); setExcludedTeamIds([]); setExcludedAthleteEmails([]); };
 
   const { data: users = [] } = useQuery({
     queryKey: ['medical-users'],
@@ -202,19 +202,18 @@ export default function MedicalPage() {
 
   // Athlètes du club / groupe / équipes sélectionnés : base des compteurs et de la liste
   // (toutes les équipes cochées : pas de restriction, athlètes sans équipe compris)
-  const scoped = athletes.filter(a =>
+  // Athlètes proposés dans le menu « Athlètes » : ceux du club / groupe / équipes choisis
+  const athletePool = athletes.filter(a =>
     (!selectedScope || selectedScope.emails.includes(a.email))
     && (!showTeamFilter || allTeamsSelected || selectedTeamEmails.has(a.email)));
+  const excludedAthletes = new Set(excludedAthleteEmails);
+  const scoped = athletePool.filter(a => !excludedAthletes.has(a.email));
 
   const counts = Object.fromEntries(STATUS_FILTERS.map(s => [s.value, 0]));
   for (const a of scoped) counts[a.current?.status || AVAILABLE_STATUS.value]++;
 
-  const q = search.trim().toLowerCase();
-  const filtered = scoped.filter(a => {
-    if (statusFilter !== 'all' && (a.current?.status || AVAILABLE_STATUS.value) !== statusFilter) return false;
-    if (q && !a.name.toLowerCase().includes(q) && !a.email.toLowerCase().includes(q)) return false;
-    return true;
-  });
+  const filtered = scoped.filter(a =>
+    statusFilter === 'all' || (a.current?.status || AVAILABLE_STATUS.value) === statusFilter);
 
   const selected = athletes.find(a => a.email === selectedEmail) || null;
 
@@ -313,19 +312,26 @@ export default function MedicalPage() {
 
         {/* Filtres */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input className="pl-9" placeholder="Rechercher un athlète…" value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
+          {/* Admin et coach à plusieurs clubs / groupes : choix du club, puis des athlètes */}
           {showScopeSelect && (
             <Select value={scopeFilter} onValueChange={changeScope}>
-              <SelectTrigger className="sm:w-64"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="sm:w-64">
+                <span className="flex items-center gap-1 truncate">
+                  <span className="text-slate-500">Club :</span><SelectValue />
+                </span>
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{isAdmin ? 'Tous les athlètes' : 'Tous mes athlètes'}</SelectItem>
+                <SelectItem value="all">{isAdmin ? 'Tous les clubs' : 'Tous mes clubs'}</SelectItem>
                 {scopeOptions.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
+          <AthleteMultiSelect
+            className="flex-1 min-w-0"
+            athletes={athletePool}
+            excluded={excludedAthleteEmails}
+            onChange={setExcludedAthleteEmails}
+          />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="sm:w-56"><SelectValue /></SelectTrigger>
             <SelectContent>

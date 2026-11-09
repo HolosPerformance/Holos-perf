@@ -24,10 +24,12 @@ import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetric
 import {
   Users, Activity, TrendingUp, Calendar, Filter,
   RefreshCw, ArrowLeft, Search, Zap, Download,
-  BoxSelect, Table2, BarChart3, MessageSquare, SlidersHorizontal
+  BoxSelect, Table2, BarChart3, MessageSquare, SlidersHorizontal, HeartPulse
 } from 'lucide-react';
+import PainEvolution, { collectPainEntries } from '../components/dashboard/PainEvolution';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
 import { questionnaireDay } from '@/lib/questionnaireDay';
+import { isArchived } from '@/lib/questionnaireArchive';
 import { selectedChoiceLabels, sessionTypesOf, matchesSessionTypes } from '@/lib/sessionTypes';
 import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -136,6 +138,7 @@ export default function CoachDashboard() {
   // Regroupement des boxplots : null = automatique selon la longueur de la période
   const [boxplotGroupByChoice, setBoxplotGroupByChoice] = useState(null);
   const [showRemarks, setShowRemarks] = useState(false);
+  const [showPain, setShowPain] = useState(false);
   // Types de séance mis en évidence sur les graphiques (mémorisés dans le navigateur)
   const [highlightedTypes, setHighlightedTypes] = useState(() => {
     try { return JSON.parse(localStorage.getItem('dashboardHighlightedTypes') || '[]'); } catch { return []; }
@@ -205,28 +208,35 @@ export default function CoachDashboard() {
     enabled: !!user?.email && isCoach,
   });
 
-  const { data: assignedTemplates = [] } = useQuery({
+  const { data: templateScope } = useQuery({
     queryKey: ['coach-templates', user?.email, coachGroup?.id, coachClub?.id],
     queryFn: async () => {
-      if (!user?.email || (!isCoach && !isAdmin)) return [];
+      if (!user?.email || (!isCoach && !isAdmin)) return { assigned: [], archivedIds: [] };
+      const templates = await base44.entities.QuestionnaireTemplate.list();
+      // Les réponses des questionnaires archivés sont masquées du dashboard, pour tous
+      const archivedIds = templates.filter(isArchived).map(t => t.id);
+      const live = templates.filter(t => !isArchived(t));
       if (isAdmin) {
-        const templates = await base44.entities.QuestionnaireTemplate.list();
-        return templates.filter(t => t.is_active !== false);
+        return { assigned: live.filter(t => t.is_active !== false), archivedIds };
       }
       // Pour un coach : tous les templates assignés à ses athlètes (groupe + club)
-      const templates = await base44.entities.QuestionnaireTemplate.list();
       const coachAthleteEmails = [
         ...(coachGroup?.athlete_emails || []),
         ...(coachClub?.athlete_emails || []),
       ];
       const uniqueEmails = [...new Set(coachAthleteEmails)];
-      return templates.filter(t =>
-        t.assigned_coaches?.includes(user.email) ||
-        uniqueEmails.some(email => t.assigned_athletes?.includes(email))
-      );
+      return {
+        assigned: live.filter(t =>
+          t.assigned_coaches?.includes(user.email) ||
+          uniqueEmails.some(email => t.assigned_athletes?.includes(email))
+        ),
+        archivedIds,
+      };
     },
     enabled: !!user && (isCoach || isAdmin),
   });
+  const assignedTemplates = useMemo(() => templateScope?.assigned || [], [templateScope]);
+  const archivedTemplateIds = useMemo(() => templateScope?.archivedIds || [], [templateScope]);
 
   // Athlètes dont on charge les saisies : uniquement ceux sélectionnés (rien
   // n'est affiché sans sélection), restreints au groupe/club pour un coach.
@@ -243,13 +253,15 @@ export default function CoachDashboard() {
   }, [isAdmin, isCoach, selectedAthleteEmails, coachGroup, coachClub]);
 
   const { data: realLogs = [], isLoading, refetch } = useQuery({
-    queryKey: ['questionnaire-responses-coach', user?.email, fetchedAthleteEmails.join(','), assignedTemplates.map(t => t.id).join(',')],
+    queryKey: ['questionnaire-responses-coach', user?.email, fetchedAthleteEmails.join(','), assignedTemplates.map(t => t.id).join(','), archivedTemplateIds.join(',')],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       let filteredResponses;
       if (isAdmin || isCoach) {
         if (fetchedAthleteEmails.length === 0) return [];
         filteredResponses = await base44.entities.QuestionnaireResponse.filterIn('athlete_email', fetchedAthleteEmails, '-submitted_date');
+        // Sans ce filtre, les réponses d'un coach compteraient comme des saisies vides
+        filteredResponses = filteredResponses.filter(r => !archivedTemplateIds.includes(r.template_id));
         if (isAdmin) {
           const templateIds = assignedTemplates.map(t => t.id);
           if (templateIds.length > 0) filteredResponses = filteredResponses.filter(r => templateIds.includes(r.template_id));
@@ -297,7 +309,8 @@ export default function CoachDashboard() {
         };
       });
     },
-    enabled: !!user && (isAdmin || isCoach),
+    // Attend la liste des archivés, pour ne jamais afficher leurs réponses
+    enabled: !!user && (isAdmin || isCoach) && !!templateScope,
   });
 
   const { data: rawTrainingLogs = [] } = useQuery({
@@ -548,11 +561,15 @@ export default function CoachDashboard() {
     relevantTemplates.forEach(template => {
       (template.questions || []).filter(q => q.type === 'scale' || q.type === 'number').forEach(question => {
         const norm = normalizeLabel(question.label || question.athleteLabel);
+        // Maximum de l'échelle (ex. 200), pour que l'axe des graphiques le couvre
+        const max = Number(question.scaleOptions?.max);
+        const scaleMax = question.type === 'scale' && Number.isFinite(max) ? max : 0;
         if (!groupedByLabel.has(norm)) {
-          groupedByLabel.set(norm, { representative: question, ids: [question.id] });
+          groupedByLabel.set(norm, { representative: question, ids: [question.id], scaleMax });
         } else {
           const existing = groupedByLabel.get(norm);
           if (!existing.ids.includes(question.id)) existing.ids.push(question.id);
+          existing.scaleMax = Math.max(existing.scaleMax || 0, scaleMax);
         }
       });
     });
@@ -589,11 +606,13 @@ export default function CoachDashboard() {
     const labels = {};
     const colors = {};
     const idToCanonical = {};
+    const scaleMaxes = {};
     let colorIdx = 0;
 
-    groupedByLabel.forEach(({ representative: question, ids }) => {
+    groupedByLabel.forEach(({ representative: question, ids, scaleMax }) => {
       const canonicalKey = ids[0];
       ids.forEach(id => { idToCanonical[id] = canonicalKey; });
+      if (scaleMax) scaleMaxes[canonicalKey] = scaleMax;
 
       const label = normalizeLabel(question.label || question.athleteLabel);
       labels[canonicalKey] = question.label || question.athleteLabel;
@@ -621,7 +640,7 @@ export default function CoachDashboard() {
       if (customColors[key]) colors[key] = customColors[key];
     });
 
-    setAthleteMetrics({ labels, colors, idToCanonical });
+    setAthleteMetrics({ labels, colors, idToCanonical, scaleMaxes });
     // La sélection par défaut est appliquée plus bas, parmi les indicateurs
     // ayant des données sur la période (voir availableMetricEntries)
     needsDefaultSelection.current = true;
@@ -827,6 +846,14 @@ export default function CoachDashboard() {
 
     return remarks.sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [filteredLogs, assignedTemplates]);
+
+  // Douleurs : affiché dès qu'un questionnaire suivi contient une question « Zones douloureuses »
+  const hasPainQuestion = assignedTemplates.some(t => (t.questions || []).some(q => q.type === 'body_pain'));
+  const painReportCount = useMemo(() => {
+    if (!hasPainQuestion) return 0;
+    const { days } = collectPainEntries(filteredLogs, assignedTemplates);
+    return [...days.values()].flat().filter(e => e.hurt).length;
+  }, [hasPainQuestion, filteredLogs, assignedTemplates]);
 
   const groupedChartData = (() => {
     const currentMetricLabels = Object.keys(athleteMetrics.labels);
@@ -1255,7 +1282,7 @@ export default function CoachDashboard() {
                   data={groupedChartData}
                   selectedMetrics={selectedMetrics}
                   metricConfig={Object.keys(athleteMetrics.labels).reduce((acc, key) => {
-                    acc[key] = { name: athleteMetrics.labels[key], color: athleteMetrics.colors[key] };
+                    acc[key] = { name: athleteMetrics.labels[key], color: athleteMetrics.colors[key], scaleMax: athleteMetrics.scaleMaxes?.[key] };
                     return acc;
                   }, {})}
                   title={`Évolution ${isAdmin && athletes.length > 1 ? '(tous les athlètes)' : ''}`}
@@ -1323,6 +1350,7 @@ export default function CoachDashboard() {
                     dataKey={key}
                     title={label}
                     color={athleteMetrics.colors[key]}
+                    scaleMax={athleteMetrics.scaleMaxes?.[key]}
                     startDate={startDate}
                     endDate={endDate}
                     height={isZoomed ? zoomHeight : undefined}
@@ -1410,6 +1438,24 @@ export default function CoachDashboard() {
             sessionTypeLabels={dynamicSessionTypes.labels}
             globalFilters={analysisGlobalFilters}
           />
+        )}
+
+        {/* Douleurs (questions « Zones douloureuses »), repliable */}
+        {hasPainQuestion && (
+          <CollapsibleAnalysis
+            title="Douleurs"
+            icon={HeartPulse}
+            badge={`${painReportCount} déclaration${painReportCount > 1 ? 's' : ''}`}
+            open={showPain}
+            onToggle={() => setShowPain(v => !v)}
+          >
+            <PainEvolution
+              logs={filteredLogs}
+              templates={assignedTemplates}
+              startDate={startDate}
+              endDate={endDate}
+            />
+          </CollapsibleAnalysis>
         )}
 
         {/* Remarques, repliable */}

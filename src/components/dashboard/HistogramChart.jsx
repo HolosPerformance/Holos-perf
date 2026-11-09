@@ -5,7 +5,7 @@ import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, TREND_STAT_DEF, calculateEMA, historyValues, computeMetricStats, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { getChartStyle, xAxisInterval } from './chartStyle';
+import { getChartStyle, xAxisInterval, valueAxis } from './chartStyle';
 import { HighlightBands, HighlightLegend, HighlightTooltipLines } from './sessionHighlights';
 import { PeriodCoverageLine } from './AthletePeriodsPanel';
 
@@ -39,7 +39,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 // `exporting` : rendu pour la capture d'image (style ordinateur, marges
 // réduites, sans animation).
 // `highlights` : types de séance mis en évidence ({ types, days }, voir sessionHighlights).
-export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, advancedStats, emaHistory = [], highlights, isZoomed = false, exporting = false }) {
+export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, scaleMax, advancedStats, emaHistory = [], highlights, isZoomed = false, exporting = false }) {
   const isMobile = useIsMobile() && !exporting;
   const style = getChartStyle(isMobile);
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -107,6 +107,15 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
     return dataPoint;
   });
 
+  // Axe adapté aux valeurs affichées et à l'échelle de la question
+  const shownStats = metricStats
+    ? REFERENCE_STAT_DEFS.filter(def => advancedStats?.[def.key]).map(def => metricStats[def.key])
+    : [];
+  const yAxis = valueAxis(
+    [...chartData.flatMap(d => [d.value, d.ema7, d.ema21, d.trend]), ...shownStats],
+    scaleMax
+  );
+
   return (
     <Card className={exporting ? 'border-0 shadow-none bg-white' : 'shadow-sm border-0'}>
       <CardHeader className={exporting ? 'p-2 pb-1' : 'pb-2'}>
@@ -132,8 +141,8 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
               tick={style.axisTick}
               tickLine={false}
               axisLine={false}
-              domain={[0, 100]}
-              allowDataOverflow
+              domain={yAxis.domain}
+              ticks={yAxis.ticks}
             />
             <Tooltip content={<CustomTooltip />} />
             {/* Sur téléphone, la légende « Valeur » seule n'apporte rien : masquée */}
