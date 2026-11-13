@@ -5,7 +5,7 @@ import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, TREND_STAT_DEF, calculateEMA, historyValues, computeMetricStats, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { getChartStyle, xAxisInterval, valueAxis } from './chartStyle';
+import { getChartStyle, xAxisProps, valueAxis } from './chartStyle';
 import { HighlightBands, HighlightLegend, HighlightTooltipLines } from './sessionHighlights';
 import { PeriodCoverageLine } from './AthletePeriodsPanel';
 
@@ -39,7 +39,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 // `exporting` : rendu pour la capture d'image (style ordinateur, marges
 // réduites, sans animation).
 // `highlights` : types de séance mis en évidence ({ types, days }, voir sessionHighlights).
-export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, scaleMax, advancedStats, emaHistory = [], highlights, isZoomed = false, exporting = false }) {
+export default function HistogramChart({ data, dataKey, title, color, startDate, endDate, height = 220, scaleMax, advancedStats, emaHistory = [], highlights, isZoomed = false, exporting = false, axisSettings }) {
   const isMobile = useIsMobile() && !exporting;
   const style = getChartStyle(isMobile);
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -113,7 +113,8 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
     : [];
   const yAxis = valueAxis(
     [...chartData.flatMap(d => [d.value, d.ema7, d.ema21, d.trend]), ...shownStats],
-    scaleMax
+    scaleMax,
+    axisSettings?.yTicks
   );
 
   return (
@@ -129,13 +130,12 @@ export default function HistogramChart({ data, dataKey, title, color, startDate,
             {highlights?.types?.length > 0 && <Customized component={HighlightBands} />}
             <XAxis
               dataKey="fullDate"
-              tick={style.axisTick}
+              {...xAxisProps(isMobile, chartData, style.axisTick, axisSettings)}
               tickLine={false}
               axisLine={false}
               angle={-45}
               textAnchor="end"
               height={style.xAxisHeight}
-              interval={xAxisInterval(isMobile, chartData.length)}
             />
             <YAxis
               tick={style.axisTick}

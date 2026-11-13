@@ -5,7 +5,7 @@ import { fr } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { calculateEMA, historyValues, computeLinearTrend, formatSlope } from '@/lib/advancedStats';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { getChartStyle, xAxisInterval, valueAxis } from './chartStyle';
+import { getChartStyle, xAxisProps, valueAxis } from './chartStyle';
 import { HighlightBands, HighlightLegend, HighlightTooltipLines } from './sessionHighlights';
 import { PeriodCoverageLine } from './AthletePeriodsPanel';
 
@@ -39,7 +39,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 // `highlights` : types de séance mis en évidence ({ types, days }, voir sessionHighlights).
 // `exporting` : rendu pour la capture d'image (style ordinateur, marges
 // réduites, légende entière, sans animation).
-export default function AthleteDataChart({ data, selectedMetrics, title, metricConfig, startDate, endDate, height = 350, statLines = [], emaDefs = [], emaHistory = [], showTrend = false, highlights, isZoomed = false, exporting = false }) {
+export default function AthleteDataChart({ data, selectedMetrics, title, metricConfig, startDate, endDate, height = 350, statLines = [], emaDefs = [], emaHistory = [], showTrend = false, highlights, isZoomed = false, exporting = false, axisSettings }) {
   const isMobile = useIsMobile() && !exporting;
   const style = getChartStyle(isMobile);
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -124,7 +124,8 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
   const plottedKeys = selectedMetrics.flatMap(m => [m, `${m}__trend`, ...emaDefs.map(def => `${m}__${def.key}`)]);
   const yAxis = valueAxis(
     [...chartData.flatMap(point => plottedKeys.map(k => point[k])), ...statLines.map(l => l.value)],
-    Math.max(0, ...selectedMetrics.map(m => Number(metricConfig?.[m]?.scaleMax) || 0))
+    Math.max(0, ...selectedMetrics.map(m => Number(metricConfig?.[m]?.scaleMax) || 0)),
+    axisSettings?.yTicks
   );
 
   // Légende limitée à 2 lignes, défilable au-delà, pour que les nombreuses
@@ -150,13 +151,12 @@ export default function AthleteDataChart({ data, selectedMetrics, title, metricC
             {highlights?.types?.length > 0 && <Customized component={HighlightBands} />}
             <XAxis
               dataKey="fullDate"
-              tick={style.axisTick}
+              {...xAxisProps(isMobile, chartData, style.axisTick, axisSettings)}
               stroke={style.axisLineColor}
               tickLine={false}
               angle={-45}
               textAnchor="end"
               height={style.xAxisHeight}
-              interval={xAxisInterval(isMobile, chartData.length)}
             />
             <YAxis
               tick={style.axisTick}
