@@ -18,6 +18,8 @@ import MetricSelector from '../components/dashboard/MetricSelector';
 import StatCard from '../components/dashboard/StatCard';
 import SummaryStatsTable from '../components/dashboard/SummaryStatsTable';
 import AdvancedStatsToggle from '../components/dashboard/AdvancedStatsToggle';
+import AxisScaleToggle from '../components/dashboard/AxisScaleToggle';
+import { DEFAULT_AXIS_SETTINGS } from '../components/dashboard/chartStyle';
 import { highlightColors, buildHighlightDays } from '../components/dashboard/sessionHighlights';
 import AthletePeriodsPanel, { effectiveAthletePeriods, isInAthletePeriod, athletePeriodStart } from '../components/dashboard/AthletePeriodsPanel';
 import { REFERENCE_STAT_DEFS, EMA_STAT_DEFS, EMPTY_ADVANCED_STATS, computeMetricStats } from '@/lib/advancedStats';
@@ -148,6 +150,21 @@ export default function CoachDashboard() {
     try { localStorage.setItem('dashboardHighlightedTypes', JSON.stringify(next)); } catch { /* stockage indisponible */ }
     return next;
   });
+
+  // Échelle des graphiques (graduations, dates affichées) : réglage commun,
+  // mémorisé dans le navigateur
+  const [axisSettings, setAxisSettingsState] = useState(() => {
+    try {
+      return { ...DEFAULT_AXIS_SETTINGS, ...JSON.parse(localStorage.getItem('dashboardAxisSettings') || '{}') };
+    } catch { return DEFAULT_AXIS_SETTINGS; }
+  });
+  const setAxisSettings = (next) => {
+    setAxisSettingsState(next);
+    try { localStorage.setItem('dashboardAxisSettings', JSON.stringify(next)); } catch { /* stockage indisponible */ }
+  };
+  const axisScaleToggle = (
+    <AxisScaleToggle settings={axisSettings} onChange={setAxisSettings} startDate={startDate} endDate={endDate} />
+  );
 
   // Paramètres avancés : période propre à certains athlètes, comprise dans la
   // période globale (mémorisée dans le navigateur)
@@ -1269,12 +1286,15 @@ export default function CoachDashboard() {
               title={`Évolution ${isAdmin && athletes.length > 1 ? '(tous les athlètes)' : ''}`}
               zoomedHeight={550}
               headerExtra={
-                <AdvancedStatsToggle
-                  variant="icon"
-                  idPrefix="evolution"
-                  active={getChartStats('evolution')}
-                  onToggle={(statKey) => toggleChartStat('evolution', statKey)}
-                />
+                <>
+                  {axisScaleToggle}
+                  <AdvancedStatsToggle
+                    variant="icon"
+                    idPrefix="evolution"
+                    active={getChartStats('evolution')}
+                    onToggle={(statKey) => toggleChartStat('evolution', statKey)}
+                  />
+                </>
               }
             >
               {(isZoomed, zoomHeight, exporting) => (
@@ -1296,6 +1316,7 @@ export default function CoachDashboard() {
                   highlights={chartHighlights}
                   isZoomed={isZoomed}
                   exporting={exporting}
+                  axisSettings={axisSettings}
                 />
               )}
             </ZoomableChartCard>
@@ -1336,12 +1357,15 @@ export default function CoachDashboard() {
                 zoomedHeight={450}
                 exportWidth={EXPORT_WIDTH_HALF}
                 headerExtra={
-                  <AdvancedStatsToggle
-                    variant="icon"
-                    idPrefix={`hist-${key}`}
-                    active={getChartStats(key)}
-                    onToggle={(statKey) => toggleChartStat(key, statKey)}
-                  />
+                  <>
+                    {axisScaleToggle}
+                    <AdvancedStatsToggle
+                      variant="icon"
+                      idPrefix={`hist-${key}`}
+                      active={getChartStats(key)}
+                      onToggle={(statKey) => toggleChartStat(key, statKey)}
+                    />
+                  </>
                 }
               >
                 {(isZoomed, zoomHeight, exporting) => (
@@ -1359,6 +1383,7 @@ export default function CoachDashboard() {
                     highlights={chartHighlights}
                     isZoomed={isZoomed}
                     exporting={exporting}
+                    axisSettings={axisSettings}
                   />
                 )}
               </ZoomableChartCard>
