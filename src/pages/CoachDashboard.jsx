@@ -51,6 +51,11 @@ const defaultSessionTypeColors = [
 ];
 
 // Virtual demo data
+// Libellé d'indicateur comparable d'un questionnaire à l'autre
+const normalizeMetricLabel = (str) => (str || '').toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .trim();
+
 const generateDemoData = () => {
   const athletes = [
     { email: 'marie.dupont@email.com', name: 'Marie Dupont' },
@@ -121,6 +126,11 @@ export default function CoachDashboard() {
   // Indique que la sélection par défaut doit être recalculée une fois connus
   // les indicateurs ayant des données sur la période
   const needsDefaultSelection = useRef(false);
+  // Indicateurs choisis par l'utilisateur, mémorisés par libellé normalisé (la
+  // clé interne d'un indicateur peut changer selon les athlètes sélectionnés).
+  // Conservés quand on change d'athlètes, même après un passage sans athlète.
+  // null tant que rien n'a encore été affiché.
+  const preferredMetricLabels = useRef(null);
   const [groupBy, setGroupBy] = useState('day');
   const [sessionTypeFilters, setSessionTypeFilters] = useState(['entrainement', 'competition', 'effort_type', 'off', 'inconnu']);
   const [demoData] = useState(() => generateDemoData());
@@ -562,9 +572,7 @@ export default function CoachDashboard() {
       ? assignedTemplates.filter(t => templateIdsInLogs.includes(t.id))
       : assignedTemplates;
 
-    const normalizeLabel = (str) => (str || '').toLowerCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .trim();
+    const normalizeLabel = normalizeMetricLabel;
 
     const hasTrainingLogs = userFilteredLogs.some(l => !l.template_id);
 
@@ -820,13 +828,34 @@ export default function CoachDashboard() {
   const boxplotMetricEntries = availableMetricEntries;
   const availableMetricKeysSignature = availableMetricEntries.map(([key]) => key).join('|');
 
-  // Sélection par défaut : les 4 premiers indicateurs ayant des données
+  const metricLabelKey = (key) => normalizeMetricLabel(athleteMetrics.labels[key]);
+
+  // Sélection après un changement d'athlètes : les indicateurs mémorisés qui
+  // ont des données ; à défaut (premier affichage, ou aucun n'existe pour ces
+  // athlètes), les 4 premiers indicateurs ayant des données
   useEffect(() => {
     if (!needsDefaultSelection.current) return;
     const keys = availableMetricKeysSignature ? availableMetricKeysSignature.split('|') : [];
-    setSelectedMetrics(keys.slice(0, 4));
-    if (keys.length > 0) needsDefaultSelection.current = false;
+    const preferred = preferredMetricLabels.current;
+    let next = preferred
+      ? preferred.map(label => keys.find(k => metricLabelKey(k) === label)).filter(Boolean)
+      : [];
+    if (next.length === 0) next = keys.slice(0, 4);
+    setSelectedMetrics(next);
+    if (keys.length > 0) {
+      needsDefaultSelection.current = false;
+      if (!preferred) preferredMetricLabels.current = next.map(metricLabelKey);
+    }
   }, [availableMetricKeysSignature, athleteMetrics]);
+
+  // Choix de l'utilisateur : les indicateurs mémorisés absents du sélecteur
+  // (sans données pour les athlètes actuels) restent mémorisés
+  const handleSelectedMetricsChange = (next) => {
+    setSelectedMetrics(next);
+    const shown = new Set(availableMetricEntries.map(([key]) => metricLabelKey(key)));
+    const hidden = (preferredMetricLabels.current || []).filter(label => !shown.has(label));
+    preferredMetricLabels.current = [...next.map(metricLabelKey), ...hidden];
+  };
 
   // Remarques : commentaire libre du questionnaire d'entraînement classique,
   // et réponses aux questions de type texte libre des questionnaires personnalisés.
@@ -1268,7 +1297,7 @@ export default function CoachDashboard() {
               </div>
               <MetricSelector
                 selected={selectedMetrics}
-                onChange={setSelectedMetrics}
+                onChange={handleSelectedMetricsChange}
                 onColorChange={handleColorChange}
                 metrics={availableMetricEntries.map(([key, label]) => ({
                   key,
