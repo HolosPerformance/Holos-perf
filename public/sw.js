@@ -1,4 +1,5 @@
-const CACHE_NAME = 'holos-v4';
+// v5 : nouvelles icônes (proportions du logo respectées)
+const CACHE_NAME = 'holos-v5';
 const STATIC_ASSETS = ['/manifest.json', '/icons/icon-192x192.png', '/icons/icon-512x512.png'];
 
 self.addEventListener('install', (event) => {
