@@ -324,7 +324,7 @@ export default function AthleteHome() {
               <TrendingUp className="w-10 h-10 text-white" />
             </div>
           </motion.div>
-          <h1 className="text-4xl font-bold text-slate-800 mb-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2">
             Mon Espace Athlète
           </h1>
           <p className="text-slate-500 text-lg">

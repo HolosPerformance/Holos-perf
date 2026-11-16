@@ -580,7 +580,7 @@ export default function QuestionBank() {
                                 </button>
 
                                 {showColorPicker === index && (
-                                  <div className="absolute z-10 mt-2 p-3 bg-white border rounded-lg shadow-lg w-64">
+                                  <div className="absolute z-10 mt-2 p-3 bg-white border rounded-lg shadow-lg w-64 max-w-[calc(100vw-3rem)]">
                                     <div className="grid grid-cols-6 gap-2 mb-2">
                                       {predefinedColors.map((color) => (
                                         <button

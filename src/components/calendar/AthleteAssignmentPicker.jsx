@@ -95,7 +95,7 @@ export default function AthleteAssignmentPicker({
             value={groupFilter || '__all__'}
             onValueChange={(groupId) => setGroupFilter(groupId === '__all__' ? '' : groupId)}
           >
-            <SelectTrigger className="w-48"><SelectValue placeholder="Filtrer par groupe" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Filtrer par groupe" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Tous les groupes</SelectItem>
               {groupOptions.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
@@ -107,7 +107,7 @@ export default function AthleteAssignmentPicker({
             value={clubFilter || '__all__'}
             onValueChange={(clubId) => setClubFilter(clubId === '__all__' ? '' : clubId)}
           >
-            <SelectTrigger className="w-48"><SelectValue placeholder="Filtrer par club" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Filtrer par club" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Tous les clubs</SelectItem>
               {allClubs.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}

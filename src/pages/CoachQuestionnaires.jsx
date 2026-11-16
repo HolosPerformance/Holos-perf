@@ -300,9 +300,9 @@ export default function CoachQuestionnaires() {
                 >
                   <Card className="hover:shadow-lg transition-shadow">
                     <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
                             <CardTitle className="text-xl">{template.name}</CardTitle>
                             <Badge className="bg-green-100 text-green-700">Actif</Badge>
                             {template.created_by_email === user.email && (
@@ -317,7 +317,7 @@ export default function CoachQuestionnaires() {
                             )}
                             </div>
                             {/* Actions */}
-                            <div className="flex items-center gap-2 ml-4">
+                            <div className="flex flex-wrap items-center gap-2 sm:ml-4 shrink-0">
                               {user?.can_edit_assigned_questionnaires !== false && (
                               <Button variant="outline" size="sm" className="gap-1" onClick={() => handleEdit(template)}>
                                 <Edit2 className="w-3.5 h-3.5" />Modifier
