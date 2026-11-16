@@ -162,8 +162,9 @@ export default function CoachDashboard() {
     setAxisSettingsState(next);
     try { localStorage.setItem('dashboardAxisSettings', JSON.stringify(next)); } catch { /* stockage indisponible */ }
   };
-  const axisScaleToggle = (
-    <AxisScaleToggle settings={axisSettings} onChange={setAxisSettings} startDate={startDate} endDate={endDate} />
+  // `scaleMax` : échelle du graphique, pour ne proposer que les graduations qui y tombent juste
+  const axisScaleToggle = (scaleMax) => (
+    <AxisScaleToggle settings={axisSettings} onChange={setAxisSettings} startDate={startDate} endDate={endDate} scaleMax={scaleMax} />
   );
 
   // Paramètres avancés : période propre à certains athlètes, comprise dans la
@@ -1287,7 +1288,7 @@ export default function CoachDashboard() {
               zoomedHeight={550}
               headerExtra={
                 <>
-                  {axisScaleToggle}
+                  {axisScaleToggle(Math.max(0, ...selectedMetrics.map(m => Number(athleteMetrics.scaleMaxes?.[m]) || 0)))}
                   <AdvancedStatsToggle
                     variant="icon"
                     idPrefix="evolution"
@@ -1358,7 +1359,7 @@ export default function CoachDashboard() {
                 exportWidth={EXPORT_WIDTH_HALF}
                 headerExtra={
                   <>
-                    {axisScaleToggle}
+                    {axisScaleToggle(athleteMetrics.scaleMaxes?.[key])}
                     <AdvancedStatsToggle
                       variant="icon"
                       idPrefix={`hist-${key}`}

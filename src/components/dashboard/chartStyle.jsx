@@ -61,16 +61,13 @@ export function xAxisProps(isMobile, chartData, tickStyle, settings) {
   return { interval: xAxisInterval(isMobile, chartData.length), tick: tickStyle };
 }
 
-// Axe des valeurs : de 0 à 100 au moins, étendu jusqu'à la plus grande valeur
-// affichée ou au maximum de l'échelle des questions (`scaleMax`, ex. 200),
-// avec des graduations rondes (0, 50, 100, 150, 200…). Rien n'est coupé.
-// `tickCount` (optionnel) : nombre de graduations visé, ex. 5 → 0, 25, 50, 75, 100.
-// Le pas reste rond, donc le nombre obtenu peut être légèrement inférieur.
-export function valueAxis(values, scaleMax, tickCount) {
-  const finite = values.map(Number).filter(Number.isFinite);
-  const top = Math.max(100, Number(scaleMax) || 0, ...finite);
-  const low = Math.min(0, ...finite);
-  const intervals = Number(tickCount) >= 2 ? Number(tickCount) - 1 : 5;
+// Nombres de graduations proposés pour l'axe des valeurs. Seuls ceux qui
+// tombent juste (pas rond) sur l'échelle du graphique sont réellement proposés.
+export const Y_TICK_CHOICES = [3, 4, 5, 6, 7, 8, 10, 11];
+
+// Graduations rondes (pas de 1, 2, 2,5 ou 5 × 10ⁿ) couvrant [low, top]
+// en visant `intervals` intervalles
+function niceAxis(low, top, intervals) {
   const raw = (top - low) / intervals;
   const magnitude = 10 ** Math.floor(Math.log10(raw));
   const step = [1, 2, 2.5, 5, 10].map(m => m * magnitude).find(s => s >= raw - 1e-9);
@@ -79,4 +76,49 @@ export function valueAxis(values, scaleMax, tickCount) {
   const ticks = [];
   for (let v = min; v <= max + step / 2; v += step) ticks.push(Math.round(v * 1000) / 1000);
   return { domain: [min, max], ticks };
+}
+
+// Plage à couvrir : de 0 à 100 au moins, étendue jusqu'à la plus grande valeur
+// affichée ou au maximum de l'échelle des questions (`scaleMax`, ex. 200)
+function valueRange(values, scaleMax) {
+  const finite = values.map(Number).filter(Number.isFinite);
+  return {
+    low: Math.min(0, ...finite),
+    top: Math.max(100, Number(scaleMax) || 0, ...finite),
+  };
+}
+
+// Choix de graduations qui tombent juste pour cette échelle : [{ count, axis }]
+export function yTickOptions(values, scaleMax) {
+  const { low, top } = valueRange(values, scaleMax);
+  return Y_TICK_CHOICES
+    .map(count => ({ count, axis: niceAxis(low, top, count - 1) }))
+    .filter(o => o.axis.ticks.length === o.count);
+}
+
+// Choix possible le plus proche du nombre demandé (à égalité, le plus grand),
+// ou null si aucun ne tombe juste
+export function closestTickOption(options, tickCount) {
+  let best = null;
+  options.forEach(o => {
+    const d = Math.abs(o.count - tickCount);
+    const bestD = best ? Math.abs(best.count - tickCount) : Infinity;
+    if (d < bestD || (d === bestD && o.count > best.count)) best = o;
+  });
+  return best;
+}
+
+// Axe des valeurs, avec des graduations rondes (0, 50, 100, 150, 200…).
+// Rien n'est coupé.
+// `tickCount` (optionnel) : nombre de graduations voulu, ex. 5 → 0, 25, 50, 75, 100.
+// S'il ne tombe pas juste sur cette échelle, le choix possible le plus proche est pris.
+// En automatique, AUTO_TICK_COUNT graduations sont visées (0, 25, 50, 75, 100
+// sur une échelle de 100).
+export const AUTO_TICK_COUNT = 5;
+
+export function valueAxis(values, scaleMax, tickCount) {
+  const { low, top } = valueRange(values, scaleMax);
+  const wanted = Number(tickCount) >= 2 ? Number(tickCount) : AUTO_TICK_COUNT;
+  const option = closestTickOption(yTickOptions(values, scaleMax), wanted);
+  return option ? option.axis : niceAxis(low, top, wanted - 1);
 }
