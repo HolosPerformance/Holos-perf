@@ -371,8 +371,8 @@ export default function CoachCalendar({ coachEmail, athletes, isAdmin = false, f
               </Button>
             </div>
             
-            <div className="flex items-center gap-2">
-              <div className="flex border rounded-lg overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <div className="grid grid-cols-3 sm:flex border rounded-lg overflow-hidden">
                 <Button
                   variant={view === 'day' ? 'default' : 'ghost'}
                   size="sm"
@@ -408,7 +408,7 @@ export default function CoachCalendar({ coachEmail, athletes, isAdmin = false, f
                   setSelectedDate(currentDate);
                   setShowCreateDialog(true);
                 }}
-                className="gap-2"
+                className="gap-2 w-full sm:w-auto"
               >
                 <Plus className="w-4 h-4" />
                 Créer une séance

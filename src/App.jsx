@@ -24,6 +24,7 @@ import PendingApprovalPage from './pages/PendingApproval';
 import LoginPage from './pages/LoginPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import PageNotFound from './lib/PageNotFound';
+import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -122,6 +123,7 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
+          <ScrollToTop />
           <AppRouter />
         </Router>
         <Toaster />
