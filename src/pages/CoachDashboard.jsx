@@ -145,6 +145,7 @@ export default function CoachDashboard() {
   const [chartAdvancedStats, setChartAdvancedStats] = useState({});
   // Menus repliables, fermés à chaque arrivée sur la page
   const [showSummaryStats, setShowSummaryStats] = useState(false);
+  const [showSummaryPercentiles, setShowSummaryPercentiles] = useState(false);
   const [showHistograms, setShowHistograms] = useState(false);
   const [showBoxplots, setShowBoxplots] = useState(false);
   // Regroupement des boxplots : null = automatique selon la longueur de la période
@@ -901,6 +902,60 @@ export default function CoachDashboard() {
     return remarks.sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
   }, [filteredLogs, assignedTemplates]);
 
+  // Contenus des menus repliables, réutilisés pour leur export en image
+  const renderSummaryStats = () => (
+    <SummaryStatsTable
+      data={userFilteredLogs}
+      metricLabels={athleteMetrics.labels}
+      metricColors={athleteMetrics.colors}
+      startDate={startDate}
+      endDate={endDate}
+      sessionTypeFilters={sessionTypeFilters}
+      showTitle={false}
+      showPercentiles={showSummaryPercentiles}
+      onShowPercentilesChange={setShowSummaryPercentiles}
+    />
+  );
+
+  const renderPain = () => (
+    <PainEvolution
+      logs={filteredLogs}
+      templates={assignedTemplates}
+      startDate={startDate}
+      endDate={endDate}
+    />
+  );
+
+  // Liste des remarques (affichée dans le menu repliable et dans l'export en image)
+  const renderRemarks = () => (
+    <Card className="shadow-sm border-0">
+      <CardContent className="pt-6">
+        {remarksList.length === 0 ? (
+          <p className="text-center text-sm text-slate-500 py-6">
+            Aucune remarque sur la période sélectionnée.
+          </p>
+        ) : (
+          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+            {remarksList.map((remark) => (
+              <div key={remark.id} className="p-3 rounded-lg border border-slate-100 bg-slate-50/50">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <span className="font-medium text-slate-800 text-sm">{remark.athlete_name}</span>
+                  <span className="text-xs text-slate-400 whitespace-nowrap">
+                    {format(parseISO(remark.date), 'dd/MM/yyyy', { locale: fr })}{remark.time ? ` à ${remark.time}` : ''}
+                  </span>
+                </div>
+                {remark.question && (
+                  <p className="text-xs font-semibold text-indigo-700 mb-1">{remark.question}</p>
+                )}
+                <p className="text-sm text-slate-600 whitespace-pre-wrap">{remark.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   // Douleurs : affiché dès qu'un questionnaire suivi contient une question « Zones douloureuses »
   const hasPainQuestion = assignedTemplates.some(t => (t.questions || []).some(q => q.type === 'body_pain'));
   const painReportCount = useMemo(() => {
@@ -1366,16 +1421,9 @@ export default function CoachDashboard() {
           icon={Table2}
           open={showSummaryStats}
           onToggle={() => setShowSummaryStats(v => !v)}
+          captureRender={renderSummaryStats}
         >
-          <SummaryStatsTable
-            data={userFilteredLogs}
-            metricLabels={athleteMetrics.labels}
-            metricColors={athleteMetrics.colors}
-            startDate={startDate}
-            endDate={endDate}
-            sessionTypeFilters={sessionTypeFilters}
-            showTitle={false}
-          />
+          {renderSummaryStats()}
         </CollapsibleAnalysis>
 
         {/* Histogrammes, repliable */}
@@ -1510,13 +1558,9 @@ export default function CoachDashboard() {
             badge={`${painReportCount} déclaration${painReportCount > 1 ? 's' : ''}`}
             open={showPain}
             onToggle={() => setShowPain(v => !v)}
+            captureRender={renderPain}
           >
-            <PainEvolution
-              logs={filteredLogs}
-              templates={assignedTemplates}
-              startDate={startDate}
-              endDate={endDate}
-            />
+            {renderPain()}
           </CollapsibleAnalysis>
         )}
 
@@ -1527,33 +1571,9 @@ export default function CoachDashboard() {
           badge={`${remarksList.length} remarque${remarksList.length > 1 ? 's' : ''}`}
           open={showRemarks}
           onToggle={() => setShowRemarks(v => !v)}
+          captureRender={renderRemarks}
         >
-        <Card className="shadow-sm border-0">
-          <CardContent className="pt-6">
-            {remarksList.length === 0 ? (
-              <p className="text-center text-sm text-slate-500 py-6">
-                Aucune remarque sur la période sélectionnée.
-              </p>
-            ) : (
-              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                {remarksList.map((remark) => (
-                  <div key={remark.id} className="p-3 rounded-lg border border-slate-100 bg-slate-50/50">
-                    <div className="flex items-center justify-between gap-3 mb-1">
-                      <span className="font-medium text-slate-800 text-sm">{remark.athlete_name}</span>
-                      <span className="text-xs text-slate-400 whitespace-nowrap">
-                        {format(parseISO(remark.date), 'dd/MM/yyyy', { locale: fr })}{remark.time ? ` à ${remark.time}` : ''}
-                      </span>
-                    </div>
-                    {remark.question && (
-                      <p className="text-xs font-semibold text-indigo-700 mb-1">{remark.question}</p>
-                    )}
-                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{remark.text}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          {renderRemarks()}
         </CollapsibleAnalysis>
       </div>
     </div>
