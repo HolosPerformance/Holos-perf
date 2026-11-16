@@ -16,6 +16,7 @@ import CoachPermissionsPage from './pages/CoachPermissionsPage';
 import CoachHomeIndividualPage from './pages/CoachHomeIndividual';
 import CoachDailyQuestionnairePage from './pages/CoachDailyQuestionnaire';
 import CoachFillAthleteQuestionnairePage from './pages/CoachFillAthleteQuestionnaire';
+import AdminQuestionnairesPage from './pages/AdminQuestionnaires';
 import CoachDailyResponsesPage from './pages/CoachDailyResponses';
 import MedicalPage from './pages/MedicalPage';
 import OnboardingPage from './pages/Onboarding';
@@ -105,6 +106,7 @@ const AppRouter = () => {
       <Route path="/CoachHomeIndividual" element={<LayoutWrapper currentPageName="CoachHomeIndividual"><CoachHomeIndividualPage /></LayoutWrapper>} />
       <Route path="/CoachDailyQuestionnaire" element={<LayoutWrapper currentPageName="CoachDailyQuestionnaire"><CoachDailyQuestionnairePage /></LayoutWrapper>} />
       <Route path="/CoachFillAthleteQuestionnaire" element={<LayoutWrapper currentPageName="CoachFillAthleteQuestionnaire"><CoachFillAthleteQuestionnairePage /></LayoutWrapper>} />
+      <Route path="/AdminQuestionnaires" element={<LayoutWrapper currentPageName="AdminQuestionnaires"><AdminQuestionnairesPage /></LayoutWrapper>} />
       <Route path="/CoachDailyResponses" element={<LayoutWrapper currentPageName="CoachDailyResponses"><CoachDailyResponsesPage /></LayoutWrapper>} />
       <Route path="/Medical"            element={<LayoutWrapper currentPageName="Medical"><MedicalPage /></LayoutWrapper>} />
       <Route path="/JoinClub"           element={<JoinClubPage />} />

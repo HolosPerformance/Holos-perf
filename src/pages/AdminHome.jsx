@@ -17,6 +17,7 @@ import {
   Calendar,
   CalendarDays,
   ClipboardList,
+  ClipboardCheck,
   Shield,
   HeartPulse
 } from 'lucide-react';
@@ -140,6 +141,14 @@ export default function AdminHome() {
       color: 'from-indigo-500 to-indigo-700',
       hex: '#6366f1'
     },
+    ...(isAdmin ? [{
+      title: 'Suivi des questionnaires',
+      description: 'Réponses du jour par club, groupe ou athlète, et saisie à leur place',
+      icon: ClipboardCheck,
+      href: '/AdminQuestionnaires',
+      color: 'from-emerald-500 to-teal-600',
+      hex: '#10b981'
+    }] : []),
     ...(!isCoach ? [{
       title: 'Clubs',
       description: 'Créer et gérer les clubs, inviter des membres',
