@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Download, FileDown, Calendar, Users, ArrowLeft, Shield, Search, X } from 'lucide-react';
 import { format, parseISO, getWeek, getDay } from 'date-fns';
-import { responseDay } from '@/lib/questionnaireDay';
+import { responseDay, responseTime, trainingLogTime } from '@/lib/questionnaireDay';
 import { fr } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -240,7 +240,7 @@ export default function DataExport() {
     });
 
     const questionLabels = Array.from(allQuestionIds).map(id => questionIdToLabel[id] || id);
-    const baseHeaders = ['Date', 'Athlète', 'Email', 'Année', 'Mois', 'Semaine', 'Jour', 'Source'];
+    const baseHeaders = ['Date', 'Heure de réponse', 'Athlète', 'Email', 'Année', 'Mois', 'Semaine', 'Jour', 'Source'];
     const trainingLogHeaders = ['Type de séance', 'Durée (min)', 'Fatigue', 'Intensité', 'Sommeil', 'Plaisir', 'Harmonie proches', 'Maîtrise technique', 'Maîtrise tactique', 'Épanouissement', 'Commentaire'];
     const headers = [...baseHeaders, ...(logs.length > 0 ? trainingLogHeaders : []), ...questionLabels];
 
@@ -249,7 +249,7 @@ export default function DataExport() {
     const logRows = logs.map(log => {
       const date = parseISO(log.training_date);
       return [
-        format(date, 'dd/MM/yyyy', { locale: fr }), log.athlete_name || '', log.athlete_email || '',
+        format(date, 'dd/MM/yyyy', { locale: fr }), trainingLogTime(log) || '', log.athlete_name || '', log.athlete_email || '',
         format(date, 'yyyy'), format(date, 'yyMM'), `${format(date, 'yy')}${getWeek(date, { locale: fr }).toString().padStart(2, '0')}`,
         `${getDay(date) === 0 ? 7 : getDay(date)}${dayLabels[getDay(date)]}`, 'TrainingLog',
         log.session_type || '', log.duration_minutes || '', log.fatigue || '', log.intensite || '',
@@ -262,7 +262,7 @@ export default function DataExport() {
     const responseRows = responses.map(resp => {
       const date = parseISO(responseDay(resp));
       return [
-        format(date, 'dd/MM/yyyy', { locale: fr }), resp.athlete_name || '', resp.athlete_email || '',
+        format(date, 'dd/MM/yyyy', { locale: fr }), responseTime(resp) || '', resp.athlete_name || '', resp.athlete_email || '',
         format(date, 'yyyy'), format(date, 'yyMM'), `${format(date, 'yy')}${getWeek(date, { locale: fr }).toString().padStart(2, '0')}`,
         `${getDay(date) === 0 ? 7 : getDay(date)}${dayLabels[getDay(date)]}`, 'Questionnaire',
         ...(logs.length > 0 ? ['', '', '', '', '', '', '', '', '', '', ''] : []),
@@ -285,7 +285,15 @@ export default function DataExport() {
       ];
     });
 
-    const allRows = [...logRows, ...responseRows].sort((a, b) => b[0].split('/').reverse().join('').localeCompare(a[0].split('/').reverse().join('')));
+    // Tri du plus récent au plus ancien : par jour, puis par heure. Avant 5h,
+    // une réponse compte pour la veille (voir questionnaireDay) : elle est la
+    // plus tardive de cette journée.
+    const sortKey = (row) => {
+      const day = row[0].split('/').reverse().join('');
+      const time = row[1] || '';
+      return `${day}${time && time < '05:00' ? '2' : '1'}${time}`;
+    };
+    const allRows = [...logRows, ...responseRows].sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
     const csvContent = [headers.join(','), ...allRows.map(row => row.map(cell => `"${cell}"`).join(','))].join('\n');
 
     const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -301,7 +309,10 @@ export default function DataExport() {
   const exportToJSON = () => {
     const { logs, responses } = filterData();
     if (logs.length === 0 && responses.length === 0) { alert('Aucune donnée à exporter'); return; }
-    const blob = new Blob([JSON.stringify({ training_logs: logs, questionnaire_responses: responses }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({
+      training_logs: logs.map(log => ({ ...log, heure_reponse: trainingLogTime(log) })),
+      questionnaire_responses: responses.map(resp => ({ ...resp, heure_reponse: responseTime(resp) })),
+    }, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.setAttribute('href', URL.createObjectURL(blob));
     link.setAttribute('download', `donnees_${exportFileLabel}_${format(new Date(), 'yyyyMMdd')}.json`);

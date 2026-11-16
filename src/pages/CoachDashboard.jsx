@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import PainEvolution, { collectPainEntries } from '../components/dashboard/PainEvolution';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
-import { questionnaireDay } from '@/lib/questionnaireDay';
+import { questionnaireDay, responseTime, trainingLogTime } from '@/lib/questionnaireDay';
 import { isArchived } from '@/lib/questionnaireArchive';
 import { selectedChoiceLabels, sessionTypesOf, matchesSessionTypes } from '@/lib/sessionTypes';
 import { fr } from 'date-fns/locale';
@@ -329,6 +329,8 @@ export default function CoachDashboard() {
           athlete_email: response.athlete_email,
           athlete_name: response.athlete_name,
           training_date: questionnaireDay(submittedDate),
+          // Heure d'envoi ('HH:mm'), null si saisie après coup
+          response_time: responseTime(response),
           template_id: response.template_id,
           session_type: sessionTypes[0] || (hasSelectFirstQuestion ? 'inconnu' : 'questionnaire'),
           session_types: sessionTypes,
@@ -874,6 +876,7 @@ export default function CoachDashboard() {
             remarks.push({
               id: `${log.id}-${q.id}`,
               date: log.training_date,
+              time: log.response_time ?? trainingLogTime(log),
               athlete_name: log.athlete_name,
               question: q.label || q.athleteLabel,
               text: String(value).trim(),
@@ -884,6 +887,7 @@ export default function CoachDashboard() {
         remarks.push({
           id: `${log.id}-commentaire`,
           date: log.training_date,
+          time: log.response_time ?? trainingLogTime(log),
           athlete_name: log.athlete_name,
           question: 'Commentaire',
           text: String(log.commentaire).trim(),
@@ -891,7 +895,10 @@ export default function CoachDashboard() {
       }
     });
 
-    return remarks.sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Du plus récent au plus ancien : par jour, puis par heure (avant 5h, la
+    // réponse compte pour la veille et en est donc la plus tardive)
+    const sortKey = (r) => `${r.date}${r.time && r.time < '05:00' ? '2' : '1'}${r.time || ''}`;
+    return remarks.sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
   }, [filteredLogs, assignedTemplates]);
 
   // Douleurs : affiché dès qu'un questionnaire suivi contient une question « Zones douloureuses »
@@ -1534,7 +1541,7 @@ export default function CoachDashboard() {
                     <div className="flex items-center justify-between gap-3 mb-1">
                       <span className="font-medium text-slate-800 text-sm">{remark.athlete_name}</span>
                       <span className="text-xs text-slate-400 whitespace-nowrap">
-                        {format(parseISO(remark.date), 'dd/MM/yyyy', { locale: fr })}
+                        {format(parseISO(remark.date), 'dd/MM/yyyy', { locale: fr })}{remark.time ? ` à ${remark.time}` : ''}
                       </span>
                     </div>
                     {remark.question && (

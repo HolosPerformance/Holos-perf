@@ -1,6 +1,7 @@
 import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { formatPainValue, painScaleOf } from '@/lib/painZones';
+import { responseTime } from '@/lib/questionnaireDay';
 
 function resolveResponseValue(value, question) {
   if (value === undefined || value === null) return '—';
@@ -65,6 +66,9 @@ export default function ResponseTable({ template, athletes, responses }) {
             <th className="text-left font-semibold text-slate-700 px-4 py-3 border-b border-slate-200 sticky left-0 bg-slate-50 min-w-[140px] z-10">
               Athlète
             </th>
+            <th className="text-center font-medium text-slate-600 px-3 py-3 border-b border-slate-200 whitespace-nowrap">
+              Heure
+            </th>
             {questions.map(q => (
               <th
                 key={q.id}
@@ -94,6 +98,13 @@ export default function ResponseTable({ template, athletes, responses }) {
                     <Badge variant="outline" className="ml-2 text-xs text-slate-400 border-slate-200">
                       Pas répondu
                     </Badge>
+                  )}
+                </td>
+                <td className="px-3 py-3 border-b border-slate-100 text-center whitespace-nowrap tabular-nums text-slate-600">
+                  {!response ? (
+                    <span className="text-slate-200">—</span>
+                  ) : responseTime(response) || (
+                    <span className="text-slate-300" title="Réponse saisie après coup">—</span>
                   )}
                 </td>
                 {questions.map(q => (
