@@ -17,6 +17,7 @@ import {
   Calendar,
   CalendarDays,
   ClipboardList,
+  ClipboardCheck,
   Shield,
   HeartPulse
 } from 'lucide-react';
@@ -140,6 +141,14 @@ export default function AdminHome() {
       color: 'from-indigo-500 to-indigo-700',
       hex: '#6366f1'
     },
+    ...(isAdmin ? [{
+      title: 'Suivi des questionnaires',
+      description: 'Réponses du jour par club, groupe ou athlète, et saisie à leur place',
+      icon: ClipboardCheck,
+      href: '/AdminQuestionnaires',
+      color: 'from-emerald-500 to-teal-600',
+      hex: '#10b981'
+    }] : []),
     ...(!isCoach ? [{
       title: 'Clubs',
       description: 'Créer et gérer les clubs, inviter des membres',
@@ -188,7 +197,7 @@ export default function AdminHome() {
               <TrendingUp className="w-10 h-10 text-white" />
             </div>
           </motion.div>
-          <h1 className="text-4xl font-bold text-slate-800 mb-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2">
             {isCoach ? 'Espace Entraîneur' : 'Panneau d\'Administration'}
           </h1>
           <p className="text-slate-500 text-lg">

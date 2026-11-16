@@ -280,39 +280,48 @@ export default function ClubDetails() {
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Link to={createPageUrl('ClubManagement')}>
+        {/* En-tête. Téléphone : Retour (+ suppression) / logo et nom / réponses
+            en pleine largeur. Ordinateur : une seule ligne. */}
+        <div className="grid grid-cols-[1fr_auto] md:flex md:items-center gap-x-4 gap-y-4 mb-8">
+          <Link to={createPageUrl('ClubManagement')} className="justify-self-start">
             <Button variant="outline" size="sm" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               Retour
             </Button>
           </Link>
-          <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="md:order-last text-red-600 border-red-200 hover:bg-red-50 gap-2"
+              onClick={handleDeleteClub}
+              aria-label="Supprimer le club"
+              title="Supprimer le club"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden md:inline">Supprimer</span>
+            </Button>
+          )}
+          <div className="col-span-2 flex items-center gap-3 min-w-0 md:flex-1">
             {(logoFile || club.logo_url) && (
               <img
                 src={logoFile ? URL.createObjectURL(logoFile) : club.logo_url}
                 alt={club.name}
-                className="w-[60vw] h-[60vw] md:w-12 md:h-12 object-contain rounded-lg border"
+                className="w-12 h-12 shrink-0 object-contain rounded-lg border"
               />
             )}
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800">{form.name || club.name}</h1>
+            <div className="min-w-0">
+              <h1 className="text-xl md:text-2xl font-bold text-slate-800 break-words">{form.name || club.name}</h1>
               <p className="text-slate-500 text-sm">{coaches.length} coach(s) · {athletes.length} athlète(s)</p>
             </div>
           </div>
           {(isCoach || isAdmin) && (
-            <Link to={`${createPageUrl('ClubResponses')}?id=${clubId}`} className="ml-auto">
-              <Button variant="outline" size="sm" className="gap-2">
+            <Link to={`${createPageUrl('ClubResponses')}?id=${clubId}`} className="col-span-2 md:col-span-1">
+              <Button variant="outline" size="sm" className="gap-2 w-full md:w-auto">
                 <ListChecks className="w-4 h-4" />
                 Voir les réponses
               </Button>
             </Link>
-          )}
-          {isAdmin && (
-            <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 gap-2" onClick={handleDeleteClub}>
-              <Trash2 className="w-4 h-4" />
-              Supprimer
-            </Button>
           )}
         </div>
 
@@ -590,15 +599,17 @@ export default function ClubDetails() {
                       <p className="text-sm text-slate-400 text-center py-4">Aucun résultat</p>
                     )}
                     {filteredToAdd.map(u => (
-                      <div key={u.email} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50">
-                        <div>
-                          <span className="font-medium text-slate-700 text-sm">{u.full_name}</span>
-                          <span className="text-xs text-slate-400 ml-2">{u.email}</span>
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            {u.user_status === 'coach' ? 'Entraîneur' : u.user_status === 'coach_pro' ? 'Entr. Pro' : 'Athlète'}
-                          </Badge>
+                      <div key={u.email} className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg hover:bg-slate-50">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="font-medium text-slate-700 text-sm">{u.full_name}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {u.user_status === 'coach' ? 'Entraîneur' : u.user_status === 'coach_pro' ? 'Entr. Pro' : 'Athlète'}
+                            </Badge>
+                          </div>
+                          <span className="block text-xs text-slate-400 truncate">{u.email}</span>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 shrink-0">
                           {(u.user_status === 'coach' || u.user_status === 'coach_pro') && (
                             <Button size="sm" variant="outline" onClick={() => addUser(u.email, 'coach')} className="text-xs h-7">
                               + Coach
@@ -634,10 +645,10 @@ export default function ClubDetails() {
                 ) : (
                   <div className="space-y-2">
                     {coaches.map(u => (
-                      <div key={u.email} className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg">
-                        <div>
+                      <div key={u.email} className="flex items-center justify-between gap-3 py-2 px-3 bg-slate-50 rounded-lg">
+                        <div className="min-w-0">
                           <p className="text-sm font-medium text-slate-700">{u.full_name}</p>
-                          <p className="text-xs text-slate-400">{u.email}</p>
+                          <p className="text-xs text-slate-400 truncate">{u.email}</p>
                         </div>
                         <button onClick={() => removeUser(u.email, 'coach')} className="text-slate-300 hover:text-red-500 transition">
                           <X className="w-4 h-4" />

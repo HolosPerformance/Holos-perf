@@ -4,7 +4,7 @@ import { createPageUrl } from '@/utils';
 import { supabase as base44 } from '@/api/supabaseClient';
 import {
   LayoutDashboard, CalendarDays, Calendar, MessageSquare, Users, User,
-  FileText, Download, Settings, Home, ClipboardList, Shield, X, HeartPulse
+  FileText, Download, Settings, Home, ClipboardList, ClipboardCheck, Shield, X, HeartPulse
 } from 'lucide-react';
 
 const adminLinks = [
@@ -17,6 +17,7 @@ const adminLinks = [
   { label: 'Messages', icon: MessageSquare, to: createPageUrl('Messages') },
   { label: 'Export données', icon: Download, to: createPageUrl('DataExport') },
   { label: 'Bibliothèque', icon: ClipboardList, to: createPageUrl('Questionnaires') },
+  { label: 'Suivi questionnaires', icon: ClipboardCheck, to: '/AdminQuestionnaires' },
   { label: 'Clubs', icon: Shield, to: createPageUrl('ClubManagement') },
   { label: 'Paramètres', icon: Settings, to: '/Settings' },
 ];

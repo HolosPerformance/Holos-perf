@@ -176,7 +176,7 @@ export default function Questionnaires() {
               <p className="text-slate-600 text-sm md:text-base">Questionnaires types adaptés aux différentes disciplines</p>
             </div>
             {canCreateQuestionnaire && (
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 {isAdmin && (
                   <Link to={createPageUrl('QuestionBank')}>
                     <Button variant="outline" className="gap-2 w-full sm:w-auto">

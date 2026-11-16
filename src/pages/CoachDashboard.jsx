@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import PainEvolution, { collectPainEntries } from '../components/dashboard/PainEvolution';
 import { format, subDays, isAfter, parseISO, startOfWeek, startOfMonth } from 'date-fns';
-import { questionnaireDay } from '@/lib/questionnaireDay';
+import { questionnaireDay, responseTime, trainingLogTime } from '@/lib/questionnaireDay';
 import { isArchived } from '@/lib/questionnaireArchive';
 import { selectedChoiceLabels, sessionTypesOf, matchesSessionTypes } from '@/lib/sessionTypes';
 import { fr } from 'date-fns/locale';
@@ -51,6 +51,11 @@ const defaultSessionTypeColors = [
 ];
 
 // Virtual demo data
+// Libellé d'indicateur comparable d'un questionnaire à l'autre
+const normalizeMetricLabel = (str) => (str || '').toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .trim();
+
 const generateDemoData = () => {
   const athletes = [
     { email: 'marie.dupont@email.com', name: 'Marie Dupont' },
@@ -121,6 +126,11 @@ export default function CoachDashboard() {
   // Indique que la sélection par défaut doit être recalculée une fois connus
   // les indicateurs ayant des données sur la période
   const needsDefaultSelection = useRef(false);
+  // Indicateurs choisis par l'utilisateur, mémorisés par libellé normalisé (la
+  // clé interne d'un indicateur peut changer selon les athlètes sélectionnés).
+  // Conservés quand on change d'athlètes, même après un passage sans athlète.
+  // null tant que rien n'a encore été affiché.
+  const preferredMetricLabels = useRef(null);
   const [groupBy, setGroupBy] = useState('day');
   const [sessionTypeFilters, setSessionTypeFilters] = useState(['entrainement', 'competition', 'effort_type', 'off', 'inconnu']);
   const [demoData] = useState(() => generateDemoData());
@@ -135,6 +145,7 @@ export default function CoachDashboard() {
   const [chartAdvancedStats, setChartAdvancedStats] = useState({});
   // Menus repliables, fermés à chaque arrivée sur la page
   const [showSummaryStats, setShowSummaryStats] = useState(false);
+  const [showSummaryPercentiles, setShowSummaryPercentiles] = useState(false);
   const [showHistograms, setShowHistograms] = useState(false);
   const [showBoxplots, setShowBoxplots] = useState(false);
   // Regroupement des boxplots : null = automatique selon la longueur de la période
@@ -162,8 +173,9 @@ export default function CoachDashboard() {
     setAxisSettingsState(next);
     try { localStorage.setItem('dashboardAxisSettings', JSON.stringify(next)); } catch { /* stockage indisponible */ }
   };
-  const axisScaleToggle = (
-    <AxisScaleToggle settings={axisSettings} onChange={setAxisSettings} startDate={startDate} endDate={endDate} />
+  // `scaleMax` : échelle du graphique, pour ne proposer que les graduations qui y tombent juste
+  const axisScaleToggle = (scaleMax) => (
+    <AxisScaleToggle settings={axisSettings} onChange={setAxisSettings} startDate={startDate} endDate={endDate} scaleMax={scaleMax} />
   );
 
   // Paramètres avancés : période propre à certains athlètes, comprise dans la
@@ -318,6 +330,8 @@ export default function CoachDashboard() {
           athlete_email: response.athlete_email,
           athlete_name: response.athlete_name,
           training_date: questionnaireDay(submittedDate),
+          // Heure d'envoi ('HH:mm'), null si saisie après coup
+          response_time: responseTime(response),
           template_id: response.template_id,
           session_type: sessionTypes[0] || (hasSelectFirstQuestion ? 'inconnu' : 'questionnaire'),
           session_types: sessionTypes,
@@ -561,9 +575,7 @@ export default function CoachDashboard() {
       ? assignedTemplates.filter(t => templateIdsInLogs.includes(t.id))
       : assignedTemplates;
 
-    const normalizeLabel = (str) => (str || '').toLowerCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .trim();
+    const normalizeLabel = normalizeMetricLabel;
 
     const hasTrainingLogs = userFilteredLogs.some(l => !l.template_id);
 
@@ -819,13 +831,34 @@ export default function CoachDashboard() {
   const boxplotMetricEntries = availableMetricEntries;
   const availableMetricKeysSignature = availableMetricEntries.map(([key]) => key).join('|');
 
-  // Sélection par défaut : les 4 premiers indicateurs ayant des données
+  const metricLabelKey = (key) => normalizeMetricLabel(athleteMetrics.labels[key]);
+
+  // Sélection après un changement d'athlètes : les indicateurs mémorisés qui
+  // ont des données ; à défaut (premier affichage, ou aucun n'existe pour ces
+  // athlètes), les 4 premiers indicateurs ayant des données
   useEffect(() => {
     if (!needsDefaultSelection.current) return;
     const keys = availableMetricKeysSignature ? availableMetricKeysSignature.split('|') : [];
-    setSelectedMetrics(keys.slice(0, 4));
-    if (keys.length > 0) needsDefaultSelection.current = false;
+    const preferred = preferredMetricLabels.current;
+    let next = preferred
+      ? preferred.map(label => keys.find(k => metricLabelKey(k) === label)).filter(Boolean)
+      : [];
+    if (next.length === 0) next = keys.slice(0, 4);
+    setSelectedMetrics(next);
+    if (keys.length > 0) {
+      needsDefaultSelection.current = false;
+      if (!preferred) preferredMetricLabels.current = next.map(metricLabelKey);
+    }
   }, [availableMetricKeysSignature, athleteMetrics]);
+
+  // Choix de l'utilisateur : les indicateurs mémorisés absents du sélecteur
+  // (sans données pour les athlètes actuels) restent mémorisés
+  const handleSelectedMetricsChange = (next) => {
+    setSelectedMetrics(next);
+    const shown = new Set(availableMetricEntries.map(([key]) => metricLabelKey(key)));
+    const hidden = (preferredMetricLabels.current || []).filter(label => !shown.has(label));
+    preferredMetricLabels.current = [...next.map(metricLabelKey), ...hidden];
+  };
 
   // Remarques : commentaire libre du questionnaire d'entraînement classique,
   // et réponses aux questions de type texte libre des questionnaires personnalisés.
@@ -844,6 +877,7 @@ export default function CoachDashboard() {
             remarks.push({
               id: `${log.id}-${q.id}`,
               date: log.training_date,
+              time: log.response_time ?? trainingLogTime(log),
               athlete_name: log.athlete_name,
               question: q.label || q.athleteLabel,
               text: String(value).trim(),
@@ -854,6 +888,7 @@ export default function CoachDashboard() {
         remarks.push({
           id: `${log.id}-commentaire`,
           date: log.training_date,
+          time: log.response_time ?? trainingLogTime(log),
           athlete_name: log.athlete_name,
           question: 'Commentaire',
           text: String(log.commentaire).trim(),
@@ -861,8 +896,65 @@ export default function CoachDashboard() {
       }
     });
 
-    return remarks.sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Du plus récent au plus ancien : par jour, puis par heure (avant 5h, la
+    // réponse compte pour la veille et en est donc la plus tardive)
+    const sortKey = (r) => `${r.date}${r.time && r.time < '05:00' ? '2' : '1'}${r.time || ''}`;
+    return remarks.sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
   }, [filteredLogs, assignedTemplates]);
+
+  // Contenus des menus repliables, réutilisés pour leur export en image
+  const renderSummaryStats = () => (
+    <SummaryStatsTable
+      data={userFilteredLogs}
+      metricLabels={athleteMetrics.labels}
+      metricColors={athleteMetrics.colors}
+      startDate={startDate}
+      endDate={endDate}
+      sessionTypeFilters={sessionTypeFilters}
+      showTitle={false}
+      showPercentiles={showSummaryPercentiles}
+      onShowPercentilesChange={setShowSummaryPercentiles}
+    />
+  );
+
+  const renderPain = () => (
+    <PainEvolution
+      logs={filteredLogs}
+      templates={assignedTemplates}
+      startDate={startDate}
+      endDate={endDate}
+    />
+  );
+
+  // Liste des remarques (affichée dans le menu repliable et dans l'export en image)
+  const renderRemarks = () => (
+    <Card className="shadow-sm border-0">
+      <CardContent className="pt-6">
+        {remarksList.length === 0 ? (
+          <p className="text-center text-sm text-slate-500 py-6">
+            Aucune remarque sur la période sélectionnée.
+          </p>
+        ) : (
+          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+            {remarksList.map((remark) => (
+              <div key={remark.id} className="p-3 rounded-lg border border-slate-100 bg-slate-50/50">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <span className="font-medium text-slate-800 text-sm">{remark.athlete_name}</span>
+                  <span className="text-xs text-slate-400 whitespace-nowrap">
+                    {format(parseISO(remark.date), 'dd/MM/yyyy', { locale: fr })}{remark.time ? ` à ${remark.time}` : ''}
+                  </span>
+                </div>
+                {remark.question && (
+                  <p className="text-xs font-semibold text-indigo-700 mb-1">{remark.question}</p>
+                )}
+                <p className="text-sm text-slate-600 whitespace-pre-wrap">{remark.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   // Douleurs : affiché dès qu'un questionnaire suivi contient une question « Zones douloureuses »
   const hasPainQuestion = assignedTemplates.some(t => (t.questions || []).some(q => q.type === 'body_pain'));
@@ -1267,7 +1359,7 @@ export default function CoachDashboard() {
               </div>
               <MetricSelector
                 selected={selectedMetrics}
-                onChange={setSelectedMetrics}
+                onChange={handleSelectedMetricsChange}
                 onColorChange={handleColorChange}
                 metrics={availableMetricEntries.map(([key, label]) => ({
                   key,
@@ -1287,7 +1379,7 @@ export default function CoachDashboard() {
               zoomedHeight={550}
               headerExtra={
                 <>
-                  {axisScaleToggle}
+                  {axisScaleToggle(Math.max(0, ...selectedMetrics.map(m => Number(athleteMetrics.scaleMaxes?.[m]) || 0)))}
                   <AdvancedStatsToggle
                     variant="icon"
                     idPrefix="evolution"
@@ -1329,16 +1421,9 @@ export default function CoachDashboard() {
           icon={Table2}
           open={showSummaryStats}
           onToggle={() => setShowSummaryStats(v => !v)}
+          captureRender={renderSummaryStats}
         >
-          <SummaryStatsTable
-            data={userFilteredLogs}
-            metricLabels={athleteMetrics.labels}
-            metricColors={athleteMetrics.colors}
-            startDate={startDate}
-            endDate={endDate}
-            sessionTypeFilters={sessionTypeFilters}
-            showTitle={false}
-          />
+          {renderSummaryStats()}
         </CollapsibleAnalysis>
 
         {/* Histogrammes, repliable */}
@@ -1358,7 +1443,7 @@ export default function CoachDashboard() {
                 exportWidth={EXPORT_WIDTH_HALF}
                 headerExtra={
                   <>
-                    {axisScaleToggle}
+                    {axisScaleToggle(athleteMetrics.scaleMaxes?.[key])}
                     <AdvancedStatsToggle
                       variant="icon"
                       idPrefix={`hist-${key}`}
@@ -1473,13 +1558,9 @@ export default function CoachDashboard() {
             badge={`${painReportCount} déclaration${painReportCount > 1 ? 's' : ''}`}
             open={showPain}
             onToggle={() => setShowPain(v => !v)}
+            captureRender={renderPain}
           >
-            <PainEvolution
-              logs={filteredLogs}
-              templates={assignedTemplates}
-              startDate={startDate}
-              endDate={endDate}
-            />
+            {renderPain()}
           </CollapsibleAnalysis>
         )}
 
@@ -1490,33 +1571,9 @@ export default function CoachDashboard() {
           badge={`${remarksList.length} remarque${remarksList.length > 1 ? 's' : ''}`}
           open={showRemarks}
           onToggle={() => setShowRemarks(v => !v)}
+          captureRender={renderRemarks}
         >
-        <Card className="shadow-sm border-0">
-          <CardContent className="pt-6">
-            {remarksList.length === 0 ? (
-              <p className="text-center text-sm text-slate-500 py-6">
-                Aucune remarque sur la période sélectionnée.
-              </p>
-            ) : (
-              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                {remarksList.map((remark) => (
-                  <div key={remark.id} className="p-3 rounded-lg border border-slate-100 bg-slate-50/50">
-                    <div className="flex items-center justify-between gap-3 mb-1">
-                      <span className="font-medium text-slate-800 text-sm">{remark.athlete_name}</span>
-                      <span className="text-xs text-slate-400 whitespace-nowrap">
-                        {format(parseISO(remark.date), 'dd/MM/yyyy', { locale: fr })}
-                      </span>
-                    </div>
-                    {remark.question && (
-                      <p className="text-xs font-semibold text-indigo-700 mb-1">{remark.question}</p>
-                    )}
-                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{remark.text}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          {renderRemarks()}
         </CollapsibleAnalysis>
       </div>
     </div>

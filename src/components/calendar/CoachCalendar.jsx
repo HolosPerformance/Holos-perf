@@ -26,7 +26,8 @@ import AthleteAssignmentPicker from './AthleteAssignmentPicker';
 
 export default function CoachCalendar({ coachEmail, athletes, isAdmin = false, filterType = 'all', filterValue = '', allGroups = [], allClubs = [], coachClub = null, coachOwnGroups = [] }) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState('week'); // 'month', 'week', 'day'
+  // Sur téléphone, vue « Jour » par défaut : la semaine ne tient pas en largeur
+  const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week')); // 'month', 'week', 'day'
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -346,7 +347,7 @@ export default function CoachCalendar({ coachEmail, athletes, isAdmin = false, f
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <Button
                 variant="outline"
                 size="icon"
@@ -354,8 +355,8 @@ export default function CoachCalendar({ coachEmail, athletes, isAdmin = false, f
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <div className="min-w-[200px] text-center">
-                <CardTitle>
+              <div className="flex-1 min-w-0 sm:flex-none sm:min-w-[200px] text-center">
+                <CardTitle className="leading-snug capitalize">
                   {view === 'day' && format(currentDate, 'EEEE d MMMM yyyy', { locale: fr })}
                   {view === 'week' && `Semaine du ${format(startOfWeek(currentDate, { locale: fr }), 'd MMM', { locale: fr })}`}
                   {view === 'month' && format(currentDate, 'MMMM yyyy', { locale: fr })}
@@ -370,8 +371,8 @@ export default function CoachCalendar({ coachEmail, athletes, isAdmin = false, f
               </Button>
             </div>
             
-            <div className="flex items-center gap-2">
-              <div className="flex border rounded-lg overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <div className="grid grid-cols-3 sm:flex border rounded-lg overflow-hidden">
                 <Button
                   variant={view === 'day' ? 'default' : 'ghost'}
                   size="sm"
@@ -407,7 +408,7 @@ export default function CoachCalendar({ coachEmail, athletes, isAdmin = false, f
                   setSelectedDate(currentDate);
                   setShowCreateDialog(true);
                 }}
-                className="gap-2"
+                className="gap-2 w-full sm:w-auto"
               >
                 <Plus className="w-4 h-4" />
                 Créer une séance
@@ -532,7 +533,7 @@ export default function CoachCalendar({ coachEmail, athletes, isAdmin = false, f
                 const displayHeight = (endHour - startHour) * 64;
                 
                 return (
-                  <div key={idx} className={`flex-1 min-w-[120px] border rounded-lg ${isSelected ? 'border-slate-400 bg-slate-50' : 'border-slate-200'}`}>
+                  <div key={idx} className={`flex-1 min-w-[96px] sm:min-w-[120px] border rounded-lg ${isSelected ? 'border-slate-400 bg-slate-50' : 'border-slate-200'}`}>
                     <button
                       onClick={() => setSelectedDate(date)}
                       className="w-full p-3 text-center border-b hover:bg-slate-50"

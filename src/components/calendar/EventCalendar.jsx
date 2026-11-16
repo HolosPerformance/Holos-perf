@@ -476,8 +476,8 @@ export default function EventCalendar({ userEmail, selectedAthleteEmails = [], s
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex border rounded-lg overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <div className="grid grid-cols-3 sm:flex border rounded-lg overflow-hidden">
                 <Button variant={view === 'day' ? 'default' : 'ghost'} size="sm" onClick={() => setView('day')} className="rounded-none text-xs md:text-sm px-2 md:px-4">Jour</Button>
                 <Button variant={view === 'week' ? 'default' : 'ghost'} size="sm" onClick={() => setView('week')} className="rounded-none border-x text-xs md:text-sm px-2 md:px-4">Semaine</Button>
                 <Button variant={view === 'month' ? 'default' : 'ghost'} size="sm" onClick={() => setView('month')} className="rounded-none text-xs md:text-sm px-2 md:px-4">Mois</Button>
@@ -487,11 +487,10 @@ export default function EventCalendar({ userEmail, selectedAthleteEmails = [], s
                   setNewSession({ ...newSession, event_date: format(currentDate, 'yyyy-MM-dd') });
                   setShowCreateDialog(true);
                 }}
-                className="gap-2 text-xs md:text-sm" size="sm"
+                className="gap-2 text-sm w-full sm:w-auto" size="sm"
               >
                 <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Créer une séance</span>
-                <span className="sm:hidden">Créer</span>
+                Créer une séance
               </Button>
             </div>
           </div>

@@ -16,6 +16,7 @@ import CoachPermissionsPage from './pages/CoachPermissionsPage';
 import CoachHomeIndividualPage from './pages/CoachHomeIndividual';
 import CoachDailyQuestionnairePage from './pages/CoachDailyQuestionnaire';
 import CoachFillAthleteQuestionnairePage from './pages/CoachFillAthleteQuestionnaire';
+import AdminQuestionnairesPage from './pages/AdminQuestionnaires';
 import CoachDailyResponsesPage from './pages/CoachDailyResponses';
 import MedicalPage from './pages/MedicalPage';
 import OnboardingPage from './pages/Onboarding';
@@ -23,6 +24,7 @@ import PendingApprovalPage from './pages/PendingApproval';
 import LoginPage from './pages/LoginPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import PageNotFound from './lib/PageNotFound';
+import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -105,6 +107,7 @@ const AppRouter = () => {
       <Route path="/CoachHomeIndividual" element={<LayoutWrapper currentPageName="CoachHomeIndividual"><CoachHomeIndividualPage /></LayoutWrapper>} />
       <Route path="/CoachDailyQuestionnaire" element={<LayoutWrapper currentPageName="CoachDailyQuestionnaire"><CoachDailyQuestionnairePage /></LayoutWrapper>} />
       <Route path="/CoachFillAthleteQuestionnaire" element={<LayoutWrapper currentPageName="CoachFillAthleteQuestionnaire"><CoachFillAthleteQuestionnairePage /></LayoutWrapper>} />
+      <Route path="/AdminQuestionnaires" element={<LayoutWrapper currentPageName="AdminQuestionnaires"><AdminQuestionnairesPage /></LayoutWrapper>} />
       <Route path="/CoachDailyResponses" element={<LayoutWrapper currentPageName="CoachDailyResponses"><CoachDailyResponsesPage /></LayoutWrapper>} />
       <Route path="/Medical"            element={<LayoutWrapper currentPageName="Medical"><MedicalPage /></LayoutWrapper>} />
       <Route path="/JoinClub"           element={<JoinClubPage />} />
@@ -120,6 +123,7 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
+          <ScrollToTop />
           <AppRouter />
         </Router>
         <Toaster />

@@ -36,8 +36,12 @@ const calculateStats = (values) => {
   };
 };
 
-export default function SummaryStatsTable({ data, metricLabels = {}, metricColors = {}, startDate, endDate, sessionTypeFilters = ['entrainement', 'competition', 'effort_type', 'off'], showTitle = true }) {
-  const [showPercentiles, setShowPercentiles] = useState(false);
+// `showPercentiles` / `onShowPercentilesChange` (optionnels) : affichage des
+// déciles piloté par le parent, pour que l'export en image reprenne l'état affiché
+export default function SummaryStatsTable({ data, metricLabels = {}, metricColors = {}, startDate, endDate, sessionTypeFilters = ['entrainement', 'competition', 'effort_type', 'off'], showTitle = true, showPercentiles: showPercentilesProp, onShowPercentilesChange }) {
+  const [showPercentilesState, setShowPercentilesState] = useState(false);
+  const showPercentiles = showPercentilesProp ?? showPercentilesState;
+  const setShowPercentiles = onShowPercentilesChange || setShowPercentilesState;
 
   const filteredData = data.filter(log => {
     const logDate = parseISO(log.training_date);
@@ -130,7 +134,7 @@ export default function SummaryStatsTable({ data, metricLabels = {}, metricColor
                 ))}
               </TableRow>
               {!showPercentiles && (
-                <TableRow>
+                <TableRow data-capture-ignore>
                   <TableCell colSpan={statsData.length + 1} className="py-1">
                     <Button
                       variant="ghost"
@@ -153,7 +157,7 @@ export default function SummaryStatsTable({ data, metricLabels = {}, metricColor
                     ))}
                   </TableRow>
                 )),
-                <TableRow key="hide-btn">
+                <TableRow key="hide-btn" data-capture-ignore>
                   <TableCell colSpan={statsData.length + 1} className="py-1">
                     <Button
                       variant="ghost"

@@ -90,13 +90,14 @@ export default function EfaPanel({ logs, metricLabels, settings, onChange }) {
 
           <Panel
             title="Saturations factorielles"
+            captureTitle="AFE - saturations factorielles"
             description={`Chaque case indique à quel point l'indicateur « appartient » au facteur (de −1 à 1). En gras : saturation ≥ ${fmt(settings.loadingThreshold)}. h² = part de l'indicateur expliquée par les facteurs.`}
           >
             <LoadingsTable result={result} labelOf={labelOf} threshold={settings.loadingThreshold} />
           </Panel>
 
           {settings.rotation === 'oblimin' && result.efa.nFactors > 1 && (
-            <Panel title="Corrélations entre facteurs" description="Avec une rotation oblique, les facteurs peuvent être liés entre eux.">
+            <Panel title="Corrélations entre facteurs" captureTitle="AFE - corrélations entre facteurs" description="Avec une rotation oblique, les facteurs peuvent être liés entre eux.">
               <div className="overflow-x-auto">
                 <table className="text-xs">
                   <thead>
@@ -119,10 +120,10 @@ export default function EfaPanel({ logs, metricLabels, settings, onChange }) {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Panel title="Matrice de corrélations" description="Lien entre chaque paire d'indicateurs : bleu = varient dans le même sens, rouge = en sens inverse.">
+            <Panel title="Matrice de corrélations" captureTitle="AFE - matrice de corrélations" description="Lien entre chaque paire d'indicateurs : bleu = varient dans le même sens, rouge = en sens inverse.">
               <CorrelationHeatmap R={result.R} labels={result.data.keys.map(k => metricLabels[k])} />
             </Panel>
-            <Panel title="Choix du nombre de facteurs" description="On garde les facteurs dont la valeur propre (bleu) dépasse celle obtenue sur des données aléatoires (gris).">
+            <Panel title="Choix du nombre de facteurs" captureTitle="AFE - choix du nombre de facteurs" description="On garde les facteurs dont la valeur propre (bleu) dépasse celle obtenue sur des données aléatoires (gris).">
               <ScreePlot parallel={result.parallel} />
             </Panel>
           </div>

@@ -58,17 +58,18 @@ export default function ClubManagement() {
     return (
       <div className="min-h-screen p-4 md:p-8">
         <div className="max-w-3xl mx-auto">
-          <div className="flex items-center gap-4 mb-8">
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => window.history.back()}>
+          {/* Téléphone : Retour et « Gérer » en haut, titre dessous ; ordinateur : une ligne */}
+          <div className="grid grid-cols-[1fr_auto] md:flex md:items-center gap-x-4 gap-y-4 mb-8">
+            <Button variant="outline" size="sm" className="gap-2 justify-self-start" onClick={() => window.history.back()}>
               <ArrowLeft className="w-4 h-4" />
               Retour
             </Button>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-slate-800">{myClub ? myClub.name : 'Mon Club'}</h1>
+            <div className="col-span-2 row-start-2 md:row-start-auto md:flex-1 min-w-0">
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-800 break-words">{myClub ? myClub.name : 'Mon Club'}</h1>
               <p className="text-slate-500">Membres affiliés à votre club</p>
             </div>
             {myClub && (
-              <Link to={`/ClubDetails?id=${myClub.id}`}>
+              <Link to={`/ClubDetails?id=${myClub.id}`} className="col-start-2 row-start-1 md:col-start-auto md:row-start-auto">
                 <Button size="sm" variant="outline" className="gap-2">
                   <Settings className="w-4 h-4" />
                   Gérer le club
@@ -157,7 +158,7 @@ export default function ClubManagement() {
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex flex-col items-start md:flex-row md:items-center gap-4 mb-8">
           <Link to={createPageUrl('AdminHome')}>
             <Button variant="outline" size="sm" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
@@ -165,7 +166,7 @@ export default function ClubManagement() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-slate-800">Gestion des Clubs</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Gestion des Clubs</h1>
             <p className="text-slate-500">Créez et gérez les clubs de votre organisation</p>
           </div>
         </div>

@@ -2,32 +2,57 @@ import React from 'react';
 import { ChevronDown, AlertTriangle, Info, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
+import CaptureButton from '../CaptureButton';
 
-// Bouton repliable, même présentation que le menu « Boxplot » du dashboard
-export function CollapsibleAnalysis({ title, icon: Icon, open, onToggle, badge, children }) {
+// Bouton repliable, même présentation que le menu « Boxplot » du dashboard.
+// `captureRender` (optionnel) : () => ReactNode ; affiche, menu ouvert, un
+// bouton d'export en image du contenu (titre du menu en tête de l'image).
+export function CollapsibleAnalysis({ title, icon: Icon, open, onToggle, badge, captureRender, children }) {
+  const canCapture = open && !!captureRender;
   return (
     <div className="mb-6">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center justify-between gap-2 p-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors shadow-sm"
-      >
-        <span className="font-semibold text-slate-800 flex items-center gap-2">
-          {Icon && <Icon className="w-4 h-4 text-slate-500" />}
-          {title}
-          {badge && <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">{badge}</span>}
-        </span>
-        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="w-full flex items-center justify-between gap-2 p-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors shadow-sm"
+        >
+          <span className="font-semibold text-slate-800 flex items-center gap-2 text-left">
+            {Icon && <Icon className="w-4 h-4 text-slate-500 shrink-0" />}
+            {title}
+            {badge && <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">{badge}</span>}
+          </span>
+          <span className="flex items-center gap-2 shrink-0">
+            {/* Place réservée au bouton d'export, posé par-dessus (pas de bouton dans un bouton) */}
+            {canCapture && <span className="w-8" aria-hidden="true" />}
+            <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </span>
+        </button>
+        {canCapture && (
+          <div className="absolute top-1/2 -translate-y-1/2 right-10">
+            <CaptureButton title={title} heading={title} render={captureRender} />
+          </div>
+        )}
+      </div>
       {open && <div className="mt-4 space-y-4">{children}</div>}
     </div>
   );
 }
 
-export function Panel({ title, description, children, className }) {
+// `captureTitle` (optionnel) : affiche un bouton d'export en image du panneau,
+// le texte servant de nom au fichier
+export function Panel({ title, description, children, className, captureTitle }) {
   return (
-    <div className={cn('rounded-lg border border-slate-200 bg-white p-4 shadow-sm', className)}>
-      {title && <h4 className="font-semibold text-slate-800 text-sm">{title}</h4>}
+    <div className={cn('relative rounded-lg border border-slate-200 bg-white p-4 shadow-sm', className)}>
+      {captureTitle && (
+        <div className="absolute top-3 right-3 z-10">
+          <CaptureButton
+            title={captureTitle}
+            render={() => <Panel title={title} description={description} className={className}>{children}</Panel>}
+          />
+        </div>
+      )}
+      {title && <h4 className={cn('font-semibold text-slate-800 text-sm', captureTitle && 'pr-10')}>{title}</h4>}
       {description && <p className="text-xs text-slate-500 mt-0.5 mb-3">{description}</p>}
       {!description && title && <div className="mb-3" />}
       {children}

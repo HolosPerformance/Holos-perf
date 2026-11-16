@@ -205,7 +205,7 @@ export default function NetworkPanel({
           {compare ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {[['A', resultA], ['B', resultB]].map(([name, result]) => (
-                <Panel key={name} title={<span style={{ color: SIDE_COLORS[name] }}>Réseau {name}</span>}>
+                <Panel key={name} captureTitle={`Réseau ${name}`} title={<span style={{ color: SIDE_COLORS[name] }}>Réseau {name}</span>}>
                   <NetworkSummary result={result} edgeThreshold={settings.edgeThreshold} />
                   <NetworkGraph
                     keys={keys} labels={metricLabels} nodeColors={nodeColors}
@@ -218,6 +218,7 @@ export default function NetworkPanel({
           ) : (
             <Panel
               title="Réseau des indicateurs"
+              captureTitle="Réseau des indicateurs"
               description="Chaque lien est une corrélation partielle : le lien entre deux indicateurs une fois l'effet de tous les autres retiré. Bleu = même sens, rouge = sens inverse, épaisseur = force. Les bulles se déplacent à la souris."
             >
               <NetworkSummary result={resultA} edgeThreshold={settings.edgeThreshold} />

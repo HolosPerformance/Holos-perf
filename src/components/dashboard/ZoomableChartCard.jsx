@@ -18,7 +18,7 @@ const slugify = (str) => (str || 'graphique')
   .normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'graphique';
 
-const iconButtonClass = 'p-1.5 rounded-md bg-white/90 hover:bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-slate-800 transition-colors disabled:opacity-60';
+export const iconButtonClass ='p-1.5 rounded-md bg-white/90 hover:bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-slate-800 transition-colors disabled:opacity-60';
 
 // Wraps a chart in a relative container with a "zoom in" button (top-right).
 // Clicking it opens the same chart, rendered larger, in a modal with a

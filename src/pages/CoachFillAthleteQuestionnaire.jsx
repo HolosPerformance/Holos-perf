@@ -92,6 +92,8 @@ export default function CoachFillAthleteQuestionnaire() {
     setSelectedTemplateId(null);
     queryClient.invalidateQueries({ queryKey: ['today-responses-daily'] });
     queryClient.invalidateQueries({ queryKey: ['athlete-today-responses', athleteEmail] });
+    // Suivi des questionnaires (administrateurs)
+    queryClient.invalidateQueries({ queryKey: ['admin-questionnaire-responses'] });
   };
 
   const isLoading = loadingAthlete || loadingTemplates || loadingResponses;

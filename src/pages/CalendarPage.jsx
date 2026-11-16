@@ -132,13 +132,13 @@ export default function CalendarPage() {
                 <Filter className="w-4 h-4 text-slate-500" />
                 <span className="text-sm font-medium text-slate-700">Filtrer par</span>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                <div className="flex border rounded-lg overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
+                <div className="flex flex-wrap gap-2">
                   {['all', 'group', 'club', 'athlete'].map(type => (
                     <button
                       key={type}
                       onClick={() => { setFilterType(type); setFilterValue(''); }}
-                      className={`px-3 py-1.5 text-sm transition-colors ${filterType === type ? 'bg-slate-800 text-white' : 'hover:bg-slate-100 text-slate-600'}`}
+                      className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${filterType === type ? 'bg-slate-800 text-white border-slate-800' : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'}`}
                     >
                       {type === 'all' ? 'Tous' : type === 'group' ? 'Groupe' : type === 'club' ? 'Club' : 'Athlète'}
                     </button>
@@ -146,19 +146,19 @@ export default function CalendarPage() {
                 </div>
                 {filterType === 'group' && (
                   <Select value={filterValue} onValueChange={setFilterValue}>
-                    <SelectTrigger className="w-52"><SelectValue placeholder="Choisir un groupe" /></SelectTrigger>
+                    <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Choisir un groupe" /></SelectTrigger>
                     <SelectContent>{allGroups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent>
                   </Select>
                 )}
                 {filterType === 'club' && (
                   <Select value={filterValue} onValueChange={setFilterValue}>
-                    <SelectTrigger className="w-52"><SelectValue placeholder="Choisir un club" /></SelectTrigger>
+                    <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Choisir un club" /></SelectTrigger>
                     <SelectContent>{allClubs.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
                 )}
                 {filterType === 'athlete' && (
                   <Select value={filterValue} onValueChange={setFilterValue}>
-                    <SelectTrigger className="w-52"><SelectValue placeholder="Choisir un athlète" /></SelectTrigger>
+                    <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Choisir un athlète" /></SelectTrigger>
                     <SelectContent>{athletes.map(a => <SelectItem key={a.email} value={a.email}>{a.name}</SelectItem>)}</SelectContent>
                   </Select>
                 )}
