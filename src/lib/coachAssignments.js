@@ -15,6 +15,24 @@ export const isIndividualCoachView = () => {
   }
 };
 
+/** L'entraîneur est-il rattaché à un club ? */
+export async function coachHasClub(coachEmail) {
+  const clubs = await base44.entities.Club.list();
+  return clubs.some(c => (c.coach_emails || []).includes(coachEmail));
+}
+
+/**
+ * Athlètes assignés à afficher dans la vue courante : en vue individuelle,
+ * ou quand l'entraîneur n'a pas de club. Un entraîneur sans club reste
+ * souvent en « vue club » (permission club désactivée par défaut, donc pas
+ * de bascule possible) : cette vue ne montre alors que ses propres athlètes.
+ */
+export async function fetchAssignedAthleteEmailsForView(coachEmail) {
+  if (!coachEmail) return [];
+  if (!isIndividualCoachView() && await coachHasClub(coachEmail)) return [];
+  return fetchAssignedAthleteEmails(coachEmail);
+}
+
 /** E-mails des athlètes assignés à cet entraîneur. */
 export async function fetchAssignedAthleteEmails(coachEmail) {
   if (!coachEmail) return [];

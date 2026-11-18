@@ -54,12 +54,13 @@ export default function CalendarPage() {
     enabled: !!user?.email && isCoach,
   });
 
-  // Vue individuelle : athlètes de tous ses groupes + athlètes assignés par l'admin
-  const isIndividualView = isIndividualCoachView();
+  // Vue individuelle, ou entraîneur sans club : athlètes de tous ses groupes
+  // + athlètes assignés par l'admin
+  const useIndividualPool = isIndividualCoachView() || coachClub === null;
   const { data: individualAthleteEmails = [] } = useQuery({
     queryKey: ['coach-individual-athletes', user?.email],
     queryFn: () => fetchIndividualAthleteEmails(user.email),
-    enabled: !!user?.email && isCoach && isIndividualView,
+    enabled: !!user?.email && isCoach && useIndividualPool,
   });
 
   // Groupes propres du coach (hors "Groupe Principal"), pour la sélection rapide lors de l'assignation d'athlètes
@@ -93,7 +94,7 @@ export default function CalendarPage() {
     let emails = [];
     if (coachView === 'club' && coachClub) {
       emails = coachClub.athlete_emails || [];
-    } else if (isIndividualView) {
+    } else if (useIndividualPool) {
       emails = individualAthleteEmails;
     } else {
       emails = coachGroup?.athlete_emails || [];
