@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, CheckCircle, ClipboardList, User, ChevronRight, AlertCircle, Pencil } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { questionnaireDay, responseDay } from '@/lib/questionnaireDay';
+import { fetchAssignedAthleteEmails } from '@/lib/coachAssignments';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 
@@ -22,13 +23,15 @@ export default function CoachDailyQuestionnaire() {
   const { data: clubData, isLoading: loadingClub } = useQuery({
     queryKey: ['coach-club-group-daily', user?.email, isIndividualView],
     queryFn: async () => {
-      const [clubs, groups] = await Promise.all([
+      const [clubs, groups, assignedEmails] = await Promise.all([
         base44.entities.Club.list(),
-        base44.entities.Group.list()
+        base44.entities.Group.list(),
+        // Athlètes assignés par l'admin : vue individuelle uniquement
+        isIndividualView ? fetchAssignedAthleteEmails(user.email) : Promise.resolve([])
       ]);
       const club = isIndividualView ? null : clubs.find(c => (c.coach_emails || []).includes(user.email));
       const coachGroups = groups.filter(g => g.coach_email === user.email);
-      return { club, coachGroups };
+      return { club, coachGroups, assignedEmails };
     },
     enabled: !!user
   });
@@ -66,7 +69,7 @@ export default function CoachDailyQuestionnaire() {
   // Construit la liste des athlètes avec leur groupe
   const groupedAthletes = useMemo(() => {
     if (!clubData) return {};
-    const { club, coachGroups } = clubData;
+    const { club, coachGroups, assignedEmails } = clubData;
     const groups = {};
 
     if (club && !isIndividualView) {
@@ -101,6 +104,14 @@ export default function CoachDailyQuestionnaire() {
           const u = allUsers.find(u => u.email === email);
           groups[g.name || 'Mon groupe'].push({ email, name: u?.full_name || email });
         });
+      });
+
+      // Athlètes assignés par l'admin qui ne sont dans aucun de ses groupes
+      const inGroups = new Set(coachGroups.flatMap(g => g.athlete_emails || []));
+      (assignedEmails || []).filter(email => !inGroups.has(email)).forEach(email => {
+        const u = allUsers.find(u => u.email === email);
+        if (!groups['Athlètes assignés']) groups['Athlètes assignés'] = [];
+        groups['Athlètes assignés'].push({ email, name: u?.full_name || email });
       });
     }
 

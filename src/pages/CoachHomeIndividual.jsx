@@ -22,13 +22,14 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import CoachCalendar from '../components/calendar/CoachCalendar';
+import { fetchIndividualAthleteEmails } from '@/lib/coachAssignments';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function CoachHomeIndividual() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [group, setGroup] = useState(null);
+  const [athleteEmails, setAthleteEmails] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const { primary: brandColor, secondary: brandSecondaryColor } = useBrandColors();
 
@@ -39,11 +40,12 @@ export default function CoachHomeIndividual() {
 
   useEffect(() => {
     if (!user?.email) return;
+    // Athlètes de tous ses groupes + athlètes que l'admin lui a assignés
     Promise.all([
-      base44.entities.Group.list(),
+      fetchIndividualAthleteEmails(user.email),
       base44.entities.User.list(),
-    ]).then(([groups, users]) => {
-      setGroup(groups.find(g => g.coach_email === user.email) || null);
+    ]).then(([emails, users]) => {
+      setAthleteEmails(emails);
       setAllUsers(users);
     });
   }, [user?.email]);
@@ -226,7 +228,7 @@ export default function CoachHomeIndividual() {
         <div className="mt-4">
           <CoachCalendar
             coachEmail={user.email}
-            athletes={(group?.athlete_emails || []).map(email => {
+            athletes={athleteEmails.map(email => {
               const u = allUsers.find(u => u.email === email);
               return { email, name: u?.full_name || email };
             })}

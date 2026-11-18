@@ -10,6 +10,7 @@ import { ArrowLeft, Filter } from 'lucide-react';
 import EventCalendar from '../components/calendar/EventCalendar';
 import CoachCalendar from '../components/calendar/CoachCalendar';
 import { useAuth } from '@/lib/AuthContext';
+import { fetchIndividualAthleteEmails, isIndividualCoachView } from '@/lib/coachAssignments';
 
 export default function CalendarPage() {
   const { user } = useAuth();
@@ -53,6 +54,14 @@ export default function CalendarPage() {
     enabled: !!user?.email && isCoach,
   });
 
+  // Vue individuelle : athlètes de tous ses groupes + athlètes assignés par l'admin
+  const isIndividualView = isIndividualCoachView();
+  const { data: individualAthleteEmails = [] } = useQuery({
+    queryKey: ['coach-individual-athletes', user?.email],
+    queryFn: () => fetchIndividualAthleteEmails(user.email),
+    enabled: !!user?.email && isCoach && isIndividualView,
+  });
+
   // Groupes propres du coach (hors "Groupe Principal"), pour la sélection rapide lors de l'assignation d'athlètes
   const { data: coachOwnGroups = [] } = useQuery({
     queryKey: ['coach-own-groups', user?.email],
@@ -84,6 +93,8 @@ export default function CalendarPage() {
     let emails = [];
     if (coachView === 'club' && coachClub) {
       emails = coachClub.athlete_emails || [];
+    } else if (isIndividualView) {
+      emails = individualAthleteEmails;
     } else {
       emails = coachGroup?.athlete_emails || [];
     }

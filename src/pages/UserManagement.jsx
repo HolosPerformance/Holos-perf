@@ -19,6 +19,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
 import { isArchived } from '@/lib/questionnaireArchive';
+import { setCoachAssignment } from '@/lib/coachAssignments';
 
 export default function UserManagement() {
   // ── Utiliser useAuth() au lieu de recharger l'utilisateur ─────────────────
@@ -173,28 +174,22 @@ export default function UserManagement() {
 
   const assignAthletesToCoachMutation = useMutation({
     mutationFn: async ({ coachEmail, athleteEmails }) => {
-      const allAthleteEmails = athletes.map(a => a.email);
-      await Promise.all(allAthleteEmails.map(async (email) => {
-        const profile = athleteProfiles.find(p => p.athlete_email === email);
-        if (!profile) return;
-        const current = profile.assigned_coach_emails || [];
-        const shouldHave = athleteEmails.includes(email);
-        const has = current.includes(coachEmail);
-        if (shouldHave && !has) {
-          await base44.entities.AthleteProfile.update(profile.id, {
-            assigned_coach_emails: [...current, coachEmail]
-          });
-        } else if (!shouldHave && has) {
-          await base44.entities.AthleteProfile.update(profile.id, {
-            assigned_coach_emails: current.filter(e => e !== coachEmail)
-          });
-        }
-      }));
+      await Promise.all(athletes.map(athlete => setCoachAssignment({
+        athleteEmail: athlete.email,
+        athleteName: athlete.full_name,
+        coachEmail,
+        assigned: athleteEmails.includes(athlete.email),
+        profile: athleteProfiles.find(p => p.athlete_email === athlete.email),
+      })));
     },
     onSuccess: () => {
       refetchProfiles();
       setAssigningCoach(null);
       toast.success('Assignations mises à jour');
+    },
+    onError: (error) => {
+      refetchProfiles();
+      toast.error(`Assignation impossible : ${error.message}`);
     },
   });
 
@@ -528,7 +523,7 @@ export default function UserManagement() {
                           </Button>
                           <Button size="sm" variant="outline" className="gap-1 text-xs text-indigo-600 border-indigo-200 hover:bg-indigo-50" onClick={() => openAssignModal(coach)}>
                             <UserCheck className="w-3.5 h-3.5" />
-                            Athlètes
+                            Athlètes ({athleteProfiles.filter(p => (p.assigned_coach_emails || []).includes(coach.email)).length})
                           </Button>
                           <Button size="icon" variant="ghost" onClick={() => handleDeleteUser(coach)} className="text-red-600 hover:bg-red-50" disabled={coach.email === user?.email}>
                             <Trash2 className="w-4 h-4" />

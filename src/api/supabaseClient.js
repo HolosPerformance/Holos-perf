@@ -133,6 +133,17 @@ function makeEntity(entityName) {
       return rows;
     },
 
+    // Toutes les lignes dont la colonne tableau `column` contient `value`,
+    // lues par pages comme `filter`.
+    async filterContains(column, value, orderBy = '-created_at') {
+      const order = parseOrder(orderBy);
+      return lireParPages(() => {
+        let q = supabaseRaw.from(table).select('*').contains(column, [value]);
+        if (order) q = q.order(order.column, { ascending: order.ascending });
+        return q;
+      }, null, `${table}] filterContains`);
+    },
+
     async get(id) {
       const { data, error } = await supabaseRaw
         .from(table).select('*').eq('id', id).single();

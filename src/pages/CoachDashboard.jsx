@@ -37,6 +37,7 @@ import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { fetchIndividualAthleteEmails, isIndividualCoachView } from '@/lib/coachAssignments';
 
 const BOXPLOT_GROUP_LABELS = { day: 'Jour', week: 'Semaine', month: 'Mois' };
 
@@ -237,8 +238,16 @@ export default function CoachDashboard() {
     enabled: !!user?.email && isCoach,
   });
 
+  // Vue individuelle : athlètes de tous ses groupes + athlètes assignés par l'admin
+  const isIndividualView = isIndividualCoachView();
+  const { data: individualAthleteEmails = [] } = useQuery({
+    queryKey: ['coach-individual-athletes', user?.email],
+    queryFn: () => fetchIndividualAthleteEmails(user.email),
+    enabled: !!user?.email && isCoach && isIndividualView,
+  });
+
   const { data: templateScope } = useQuery({
-    queryKey: ['coach-templates', user?.email, coachGroup?.id, coachClub?.id],
+    queryKey: ['coach-templates', user?.email, coachGroup?.id, coachClub?.id, individualAthleteEmails.join(',')],
     queryFn: async () => {
       if (!user?.email || (!isCoach && !isAdmin)) return { assigned: [], archivedIds: [] };
       const templates = await base44.entities.QuestionnaireTemplate.list();
@@ -252,6 +261,7 @@ export default function CoachDashboard() {
       const coachAthleteEmails = [
         ...(coachGroup?.athlete_emails || []),
         ...(coachClub?.athlete_emails || []),
+        ...individualAthleteEmails,
       ];
       const uniqueEmails = [...new Set(coachAthleteEmails)];
       return {
@@ -273,13 +283,11 @@ export default function CoachDashboard() {
   const fetchedAthleteEmails = useMemo(() => {
     if (isAdmin) return [...selectedAthleteEmails].sort();
     if (!isCoach) return [];
-    const individual = localStorage.getItem('coachView') === 'individual';
-    const pool = new Set([
-      ...(coachGroup?.athlete_emails || []),
-      ...(!individual && coachClub ? coachClub.athlete_emails || [] : []),
-    ]);
+    const pool = new Set(isIndividualView
+      ? individualAthleteEmails
+      : [...(coachGroup?.athlete_emails || []), ...(coachClub?.athlete_emails || [])]);
     return selectedAthleteEmails.filter(e => pool.has(e)).sort();
-  }, [isAdmin, isCoach, selectedAthleteEmails, coachGroup, coachClub]);
+  }, [isAdmin, isCoach, selectedAthleteEmails, coachGroup, coachClub, isIndividualView, individualAthleteEmails]);
 
   const { data: realLogs = [], isLoading, refetch } = useQuery({
     queryKey: ['questionnaire-responses-coach', user?.email, fetchedAthleteEmails.join(','), assignedTemplates.map(t => t.id).join(','), archivedTemplateIds.join(',')],
@@ -374,7 +382,7 @@ export default function CoachDashboard() {
   })), [rawTrainingLogs]);
 
   const hasRealAthletes = isCoach
-    ? (coachGroup?.athlete_emails?.length || 0) > 0 || (coachClub?.athlete_emails?.length || 0) > 0
+    ? (coachGroup?.athlete_emails?.length || 0) > 0 || (coachClub?.athlete_emails?.length || 0) > 0 || individualAthleteEmails.length > 0
     : true;
   const combinedRealLogs = useMemo(() => [...realLogs, ...mappedTrainingLogs], [realLogs, mappedTrainingLogs]);
   const allLogs = combinedRealLogs.length > 0 ? combinedRealLogs : (hasRealAthletes ? [] : demoData);
@@ -400,8 +408,6 @@ export default function CoachDashboard() {
     enabled: !!user && (isAdmin || isCoach),
   });
 
-  const isIndividualView = localStorage.getItem('coachView') === 'individual';
-
   const { data: allClubs = [] } = useQuery({
     queryKey: ['all-clubs-coach-dashboard'],
     queryFn: async () => await base44.entities.Club.list(),
@@ -417,6 +423,8 @@ export default function CoachDashboard() {
       let athleteEmails = [];
       if (coachClub && !isIndividualView) {
         athleteEmails = coachClub.athlete_emails || [];
+      } else if (isIndividualView) {
+        athleteEmails = individualAthleteEmails;
       } else {
         athleteEmails = coachGroup?.athlete_emails || [];
       }
@@ -426,7 +434,7 @@ export default function CoachDashboard() {
       });
     }
     return [];
-  }, [isAdmin, isCoach, allUsers, coachClub, isIndividualView, coachGroup]);
+  }, [isAdmin, isCoach, allUsers, coachClub, isIndividualView, coachGroup, individualAthleteEmails]);
 
   // Pool d'athlètes affiché dans la liste à cocher : réduit aux groupes/clubs
   // sélectionnés s'il y en a, sinon le pool complet (club + groupe du coach, ou tous pour l'admin).
