@@ -238,12 +238,14 @@ export default function CoachDashboard() {
     enabled: !!user?.email && isCoach,
   });
 
-  // Vue individuelle : athlètes de tous ses groupes + athlètes assignés par l'admin
+  // Vue individuelle, ou entraîneur sans club : athlètes de tous ses groupes
+  // + athlètes assignés par l'admin
   const isIndividualView = isIndividualCoachView();
+  const useIndividualPool = isIndividualView || coachClub === null;
   const { data: individualAthleteEmails = [] } = useQuery({
     queryKey: ['coach-individual-athletes', user?.email],
     queryFn: () => fetchIndividualAthleteEmails(user.email),
-    enabled: !!user?.email && isCoach && isIndividualView,
+    enabled: !!user?.email && isCoach && useIndividualPool,
   });
 
   const { data: templateScope } = useQuery({
@@ -283,11 +285,11 @@ export default function CoachDashboard() {
   const fetchedAthleteEmails = useMemo(() => {
     if (isAdmin) return [...selectedAthleteEmails].sort();
     if (!isCoach) return [];
-    const pool = new Set(isIndividualView
+    const pool = new Set(useIndividualPool
       ? individualAthleteEmails
       : [...(coachGroup?.athlete_emails || []), ...(coachClub?.athlete_emails || [])]);
     return selectedAthleteEmails.filter(e => pool.has(e)).sort();
-  }, [isAdmin, isCoach, selectedAthleteEmails, coachGroup, coachClub, isIndividualView, individualAthleteEmails]);
+  }, [isAdmin, isCoach, selectedAthleteEmails, coachGroup, coachClub, useIndividualPool, individualAthleteEmails]);
 
   const { data: realLogs = [], isLoading, refetch } = useQuery({
     queryKey: ['questionnaire-responses-coach', user?.email, fetchedAthleteEmails.join(','), assignedTemplates.map(t => t.id).join(','), archivedTemplateIds.join(',')],
@@ -423,7 +425,7 @@ export default function CoachDashboard() {
       let athleteEmails = [];
       if (coachClub && !isIndividualView) {
         athleteEmails = coachClub.athlete_emails || [];
-      } else if (isIndividualView) {
+      } else if (useIndividualPool) {
         athleteEmails = individualAthleteEmails;
       } else {
         athleteEmails = coachGroup?.athlete_emails || [];
@@ -434,7 +436,7 @@ export default function CoachDashboard() {
       });
     }
     return [];
-  }, [isAdmin, isCoach, allUsers, coachClub, isIndividualView, coachGroup, individualAthleteEmails]);
+  }, [isAdmin, isCoach, allUsers, coachClub, isIndividualView, useIndividualPool, coachGroup, individualAthleteEmails]);
 
   // Pool d'athlètes affiché dans la liste à cocher : réduit aux groupes/clubs
   // sélectionnés s'il y en a, sinon le pool complet (club + groupe du coach, ou tous pour l'admin).

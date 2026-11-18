@@ -103,11 +103,13 @@ export default function ObjectiveData() {
   const urlParams = new URLSearchParams(window.location.search);
   const isIndividualView = urlParams.get('view') === 'individual';
 
-  // Vue individuelle : athlètes de tous ses groupes + athlètes assignés par l'admin
+  // Vue individuelle, ou entraîneur sans club : athlètes de tous ses groupes
+  // + athlètes assignés par l'admin
+  const useIndividualPool = isIndividualView || coachClub === null;
   const { data: individualAthleteEmails = [] } = useQuery({
     queryKey: ['coach-individual-athletes', user?.email],
     queryFn: () => fetchIndividualAthleteEmails(user.email),
-    enabled: !!user?.email && isCoach && isIndividualView,
+    enabled: !!user?.email && isCoach && useIndividualPool,
   });
 
   // L'email est la clé de rapprochement : `strava_tokens.athlete_email` est
@@ -122,7 +124,7 @@ export default function ObjectiveData() {
       let emails = [];
       if (coachClub && !isIndividualView) {
         emails = coachClub.athlete_emails || [];
-      } else if (isIndividualView) {
+      } else if (useIndividualPool) {
         emails = individualAthleteEmails;
       } else {
         const coachGroup = allGroups[0];

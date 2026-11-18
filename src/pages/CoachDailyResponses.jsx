@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ClipboardList, AlertCircle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { questionnaireDay, responseDay } from '@/lib/questionnaireDay';
-import { fetchAssignedAthleteEmails } from '@/lib/coachAssignments';
+import { fetchAssignedAthleteEmailsForView } from '@/lib/coachAssignments';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 import ResponseTable from '@/components/questionnaire/ResponseTable';
@@ -27,8 +27,8 @@ export default function CoachDailyResponses() {
       const [clubs, groups, assignedEmails] = await Promise.all([
         base44.entities.Club.list(),
         base44.entities.Group.list(),
-        // Athlètes assignés par l'admin : vue individuelle uniquement
-        isIndividualView ? fetchAssignedAthleteEmails(user.email) : Promise.resolve([])
+        // Athlètes assignés par l'admin (vue individuelle, ou entraîneur sans club)
+        fetchAssignedAthleteEmailsForView(user.email)
       ]);
       const club = isIndividualView ? null : clubs.find(c => (c.coach_emails || []).includes(user.email));
       const coachGroups = groups.filter(g => g.coach_email === user.email);

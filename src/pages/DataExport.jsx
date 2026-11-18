@@ -88,12 +88,13 @@ export default function DataExport() {
     enabled: !!user
   });
 
-  // Vue individuelle : athlètes de tous ses groupes + athlètes assignés par l'admin
-  const isIndividualView = isIndividualCoachView();
+  // Vue individuelle, ou entraîneur sans club : athlètes de tous ses groupes
+  // + athlètes assignés par l'admin
+  const useIndividualPool = isIndividualCoachView() || coachClub === null;
   const { data: individualAthleteEmails = [] } = useQuery({
     queryKey: ['coach-individual-athletes', user?.email],
     queryFn: () => fetchIndividualAthleteEmails(user.email),
-    enabled: isCoach && !!user?.email && isIndividualView,
+    enabled: isCoach && !!user?.email && useIndividualPool,
   });
 
   const coachAthleteEmailSet = new Set([

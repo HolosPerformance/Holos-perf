@@ -24,13 +24,14 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import CoachCalendar from '../components/calendar/CoachCalendar';
+import { fetchIndividualAthleteEmails } from '@/lib/coachAssignments';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function CoachHome() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [group, setGroup] = useState(null);
+  const [calendarAthleteEmails, setCalendarAthleteEmails] = useState([]);
   const [club, setClub] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
   const { primary: brandColor, secondary: brandSecondaryColor } = useBrandColors();
@@ -48,8 +49,13 @@ export default function CoachHome() {
         base44.entities.Club.list(),
         base44.entities.User.list(),
       ]);
-      setGroup(groups.find(g => g.coach_email === user.email) || null);
-      setClub(clubs.find(c => (c.coach_emails || []).includes(user.email)) || null);
+      const myClub = clubs.find(c => (c.coach_emails || []).includes(user.email)) || null;
+      // Entraîneur sans club : athlètes de tous ses groupes + athlètes assignés par l'admin
+      const emails = myClub
+        ? (groups.find(g => g.coach_email === user.email)?.athlete_emails || [])
+        : await fetchIndividualAthleteEmails(user.email);
+      setCalendarAthleteEmails(emails);
+      setClub(myClub);
       setAllUsers(users);
     };
     load();
@@ -234,7 +240,7 @@ export default function CoachHome() {
         <div className="mt-4">
           <CoachCalendar
             coachEmail={user.email}
-            athletes={(group?.athlete_emails || []).map(email => {
+            athletes={calendarAthleteEmails.map(email => {
               const u = allUsers.find(u => u.email === email);
               return { email, name: u?.full_name || email };
             })}

@@ -15,7 +15,7 @@ import PainReports from '@/components/medical/PainReports';
 import AthleteMultiSelect from '@/components/medical/AthleteMultiSelect';
 import { extractMarkerData, athleteTrends, shiftDay, TRENDS_LOOKBACK_DAYS } from '@/lib/markerTrends';
 import { questionnaireDay } from '@/lib/questionnaireDay';
-import { fetchAssignedAthleteEmails, isIndividualCoachView } from '@/lib/coachAssignments';
+import { fetchAssignedAthleteEmailsForView, isIndividualCoachView } from '@/lib/coachAssignments';
 import { formatPainIntensity } from '@/lib/painZones';
 import {
   INJURY_STATUSES, AVAILABLE_STATUS, INJURY_TYPES, BODY_LOCATIONS,
@@ -50,8 +50,8 @@ export default function MedicalPage() {
         base44.entities.Club.list('name'),
         base44.entities.Team.list('name'),
         isAdmin ? base44.entities.Group.list('name') : base44.entities.Group.filter({ coach_email: user.email }, 'name'),
-        // Athlètes assignés par l'admin : vue individuelle du coach uniquement
-        isCoach && isIndividualView ? fetchAssignedAthleteEmails(user.email) : Promise.resolve([]),
+        // Athlètes assignés par l'admin (vue individuelle, ou entraîneur sans club)
+        isCoach ? fetchAssignedAthleteEmailsForView(user.email) : Promise.resolve([]),
       ]);
       const assignedScope = assignedEmails.length > 0
         ? [{ key: 'group:assigned', id: 'assigned', label: 'Athlètes assignés', emails: assignedEmails }]

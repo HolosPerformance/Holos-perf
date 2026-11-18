@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { fetchAssignedAthleteEmails } from '@/lib/coachAssignments';
+import { fetchAssignedAthleteEmailsForView } from '@/lib/coachAssignments';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,8 +35,8 @@ export default function CoachQuestionnaires() {
         base44.entities.QuestionnaireTemplate.list(),
         base44.entities.Club.list(),
         base44.entities.Group.list(),
-        // Athlètes assignés par l'admin : vue individuelle uniquement
-        isIndividualView ? fetchAssignedAthleteEmails(user.email) : Promise.resolve([])
+        // Athlètes assignés par l'admin (vue individuelle, ou entraîneur sans club)
+        fetchAssignedAthleteEmailsForView(user.email)
       ]);
 
       const coachClubs = isIndividualView ? [] : clubs.filter(c => (c.coach_emails || []).includes(user.email));
@@ -72,7 +72,9 @@ export default function CoachQuestionnaires() {
         return t.created_by_email === user.email
           || t.assigned_to_coach_email === user.email
           || (t.assigned_coaches || []).includes(user.email)
-          || clubTemplateIds.has(t.id);
+          || clubTemplateIds.has(t.id)
+          // Entraîneur sans club : questionnaires de ses athlètes assignés
+          || (t.assigned_athletes || []).some(e => assignedEmails.includes(e));
       });
     },
     enabled: !!user
