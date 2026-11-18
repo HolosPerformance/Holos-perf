@@ -18,6 +18,7 @@ import { format, subDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { fetchIndividualAthleteEmails } from '@/lib/coachAssignments';
 
 const METRICS = [
   { key: 'distance_km', label: 'Distance (km)', color: '#3b82f6', unit: 'km' },
@@ -102,6 +103,13 @@ export default function ObjectiveData() {
   const urlParams = new URLSearchParams(window.location.search);
   const isIndividualView = urlParams.get('view') === 'individual';
 
+  // Vue individuelle : athlètes de tous ses groupes + athlètes assignés par l'admin
+  const { data: individualAthleteEmails = [] } = useQuery({
+    queryKey: ['coach-individual-athletes', user?.email],
+    queryFn: () => fetchIndividualAthleteEmails(user.email),
+    enabled: !!user?.email && isCoach && isIndividualView,
+  });
+
   // L'email est la clé de rapprochement : `strava_tokens.athlete_email` est
   // unique, et c'est ce que les fonctions Strava utilisent côté serveur.
   const connectedEmails = new Set(stravaTokens.map(t => t.athlete_email));
@@ -114,6 +122,8 @@ export default function ObjectiveData() {
       let emails = [];
       if (coachClub && !isIndividualView) {
         emails = coachClub.athlete_emails || [];
+      } else if (isIndividualView) {
+        emails = individualAthleteEmails;
       } else {
         const coachGroup = allGroups[0];
         emails = coachGroup?.athlete_emails || [];

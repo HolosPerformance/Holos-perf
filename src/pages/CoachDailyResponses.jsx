@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ClipboardList, AlertCircle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { questionnaireDay, responseDay } from '@/lib/questionnaireDay';
+import { fetchAssignedAthleteEmails } from '@/lib/coachAssignments';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 import ResponseTable from '@/components/questionnaire/ResponseTable';
@@ -23,13 +24,15 @@ export default function CoachDailyResponses() {
   const { data: clubData, isLoading: loadingClub } = useQuery({
     queryKey: ['coach-club-group-responses', user?.email, isIndividualView],
     queryFn: async () => {
-      const [clubs, groups] = await Promise.all([
+      const [clubs, groups, assignedEmails] = await Promise.all([
         base44.entities.Club.list(),
-        base44.entities.Group.list()
+        base44.entities.Group.list(),
+        // Athlètes assignés par l'admin : vue individuelle uniquement
+        isIndividualView ? fetchAssignedAthleteEmails(user.email) : Promise.resolve([])
       ]);
       const club = isIndividualView ? null : clubs.find(c => (c.coach_emails || []).includes(user.email));
       const coachGroups = groups.filter(g => g.coach_email === user.email);
-      return { club, coachGroups };
+      return { club, coachGroups, assignedEmails };
     },
     enabled: !!user
   });
@@ -67,12 +70,13 @@ export default function CoachDailyResponses() {
   // Tous les emails d'athlètes du coach
   const allAthleteEmails = useMemo(() => {
     if (!clubData) return new Set();
-    const { club, coachGroups } = clubData;
+    const { club, coachGroups, assignedEmails } = clubData;
     const emails = new Set();
     if (club && !isIndividualView) {
       (club.athlete_emails || []).forEach(e => emails.add(e));
     }
     coachGroups.forEach(g => (g.athlete_emails || []).forEach(e => emails.add(e)));
+    (assignedEmails || []).forEach(e => emails.add(e));
     return emails;
   }, [clubData, isIndividualView]);
 

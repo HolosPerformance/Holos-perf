@@ -15,6 +15,7 @@ import { fr } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
+import { fetchIndividualAthleteEmails, isIndividualCoachView } from '@/lib/coachAssignments';
 import { formatPainValue, painScaleOf } from '@/lib/painZones';
 
 const LARGE_EXPORT_THRESHOLD = 3000;
@@ -87,9 +88,18 @@ export default function DataExport() {
     enabled: !!user
   });
 
+  // Vue individuelle : athlètes de tous ses groupes + athlètes assignés par l'admin
+  const isIndividualView = isIndividualCoachView();
+  const { data: individualAthleteEmails = [] } = useQuery({
+    queryKey: ['coach-individual-athletes', user?.email],
+    queryFn: () => fetchIndividualAthleteEmails(user.email),
+    enabled: isCoach && !!user?.email && isIndividualView,
+  });
+
   const coachAthleteEmailSet = new Set([
     ...(coachGroup?.athlete_emails || []),
     ...(coachClub?.athlete_emails || []),
+    ...individualAthleteEmails,
   ]);
 
   const userFilteredLogs = (() => {

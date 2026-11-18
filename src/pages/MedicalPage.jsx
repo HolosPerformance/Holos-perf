@@ -15,6 +15,7 @@ import PainReports from '@/components/medical/PainReports';
 import AthleteMultiSelect from '@/components/medical/AthleteMultiSelect';
 import { extractMarkerData, athleteTrends, shiftDay, TRENDS_LOOKBACK_DAYS } from '@/lib/markerTrends';
 import { questionnaireDay } from '@/lib/questionnaireDay';
+import { fetchAssignedAthleteEmails, isIndividualCoachView } from '@/lib/coachAssignments';
 import { formatPainIntensity } from '@/lib/painZones';
 import {
   INJURY_STATUSES, AVAILABLE_STATUS, INJURY_TYPES, BODY_LOCATIONS,
@@ -29,6 +30,7 @@ export default function MedicalPage() {
   const isAdmin = user?.user_status === 'admin';
   const isCoach = user?.user_status === 'coach' || user?.user_status === 'coach_pro';
   const isStaff = isAdmin || isCoach;
+  const isIndividualView = isIndividualCoachView();
 
   const [excludedAthleteEmails, setExcludedAthleteEmails] = useState([]); // athlètes décochés (aucun = tous)
   const [statusFilter, setStatusFilter] = useState('all');
@@ -42,13 +44,18 @@ export default function MedicalPage() {
 
   // ─── Périmètre : clubs, équipes et groupes (tous pour l'admin, encadrés pour un coach) ──
   const { data: scopes = { clubs: [], teams: [], groups: [] } } = useQuery({
-    queryKey: ['medical-scopes', user?.email, isAdmin],
+    queryKey: ['medical-scopes', user?.email, isAdmin, isIndividualView],
     queryFn: async () => {
-      const [clubs, teams, groups] = await Promise.all([
+      const [clubs, teams, groups, assignedEmails] = await Promise.all([
         base44.entities.Club.list('name'),
         base44.entities.Team.list('name'),
         isAdmin ? base44.entities.Group.list('name') : base44.entities.Group.filter({ coach_email: user.email }, 'name'),
+        // Athlètes assignés par l'admin : vue individuelle du coach uniquement
+        isCoach && isIndividualView ? fetchAssignedAthleteEmails(user.email) : Promise.resolve([]),
       ]);
+      const assignedScope = assignedEmails.length > 0
+        ? [{ key: 'group:assigned', id: 'assigned', label: 'Athlètes assignés', emails: assignedEmails }]
+        : [];
       const mine = (c) => isAdmin || (c.coach_emails || []).includes(user.email);
       const myClubs = clubs.filter(mine);
       const myClubIds = new Set(myClubs.map(c => c.id));
@@ -71,7 +78,10 @@ export default function MedicalPage() {
           ...mainTeams,
           ...myTeams.map(t => ({ id: t.id, club_id: t.club_id, label: t.name, emails: t.athlete_emails || [] })),
         ],
-        groups: groups.map(g => ({ key: `group:${g.id}`, id: g.id, label: `Groupe · ${g.name}`, emails: g.athlete_emails || [] })),
+        groups: [
+          ...groups.map(g => ({ key: `group:${g.id}`, id: g.id, label: `Groupe · ${g.name}`, emails: g.athlete_emails || [] })),
+          ...assignedScope,
+        ],
       };
     },
     enabled: isStaff && !!user?.email,

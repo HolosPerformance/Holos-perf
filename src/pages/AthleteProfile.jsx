@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { setCoachAssignment } from '@/lib/coachAssignments';
 
 export default function AthleteProfile() {
   const { user } = useAuth();
@@ -115,16 +116,23 @@ export default function AthleteProfile() {
   };
 
   const handleToggleCoach = async (coachEmail) => {
-    if (!profile) return;
+    if (!selectedAthleteEmail) return;
     setSavingCoachAssign(true);
-    const current = profile.assigned_coach_emails || [];
-    const updated = current.includes(coachEmail)
-      ? current.filter(e => e !== coachEmail)
-      : [...current, coachEmail];
-    await base44.entities.AthleteProfile.update(profile.id, { assigned_coach_emails: updated });
-    queryClient.invalidateQueries({ queryKey: ['athlete-profile', selectedAthleteEmail] });
-    toast.success('Assignation mise à jour');
-    setSavingCoachAssign(false);
+    try {
+      await setCoachAssignment({
+        athleteEmail: selectedAthleteEmail,
+        athleteName: athleteUserData?.full_name,
+        coachEmail,
+        assigned: !(profile?.assigned_coach_emails || []).includes(coachEmail),
+        profile,
+      });
+      toast.success('Assignation mise à jour');
+    } catch (error) {
+      toast.error(`Assignation impossible : ${error.message}`);
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['athlete-profile', selectedAthleteEmail] });
+      setSavingCoachAssign(false);
+    }
   };
 
   // Charger le groupe de l'athlète

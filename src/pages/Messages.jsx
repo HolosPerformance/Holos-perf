@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { fetchAssignedCoachEmails, fetchIndividualAthleteEmails, isIndividualCoachView } from '@/lib/coachAssignments';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -25,7 +26,7 @@ export default function Messages() {
 
   // Charger les contacts (athlètes pour coach, coach pour athlète, tous pour admin)
   const { data: contacts = [] } = useQuery({
-    queryKey: ['contacts', user?.email],
+    queryKey: ['contacts', user?.email, isIndividualCoachView()],
     queryFn: async () => {
       if (!user) return [];
 
@@ -52,10 +53,8 @@ export default function Messages() {
           athleteEmails = myClub.athlete_emails || [];
           (myClub.coach_emails || []).filter(e => e !== user.email).forEach(e => coachEmails.push(e));
         } else {
-          // Vue individuelle : uniquement les athlètes des groupes personnels
-          const groups = await base44.entities.Group.list();
-          const myGroups = groups.filter(g => g.coach_email === user.email);
-          athleteEmails = [...new Set(myGroups.flatMap(g => g.athlete_emails || []))];
+          // Vue individuelle : athlètes des groupes personnels + athlètes assignés par l'admin
+          athleteEmails = await fetchIndividualAthleteEmails(user.email);
         }
 
         const allUsersData = await base44.entities.User.list();
@@ -98,6 +97,13 @@ export default function Messages() {
             role: 'coach'
           });
         }
+
+        // Entraîneurs que l'admin lui a assignés
+        const assignedCoachEmails = await fetchAssignedCoachEmails(user.email);
+        assignedCoachEmails.forEach(email => {
+          const coachUser = allUsers.find(u => u.email === email);
+          contactsList.push({ email, name: coachUser?.full_name || email.split('@')[0], role: 'coach' });
+        });
 
         // Récupérer tous les messages de l'athlète pour trouver d'autres contacts
         const allAthleteMessages = await base44.entities.Message.list('-created_date', 500);

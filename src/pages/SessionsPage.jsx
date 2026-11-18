@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { createPageUrl } from '@/utils';
+import { fetchIndividualAthleteEmails } from '@/lib/coachAssignments';
 
 const PAGE_SIZE = 5;
 
@@ -108,10 +109,9 @@ export default function SessionsPage() {
         const coachEvents = await base44.entities.Event.filter({ user_email: user.email });
         const coachView = localStorage.getItem('coachView') || 'club';
         if (coachView === 'individual') {
-          // Vue individuelle : séances assignées aux athlètes des groupes personnels du coach
-          const groups = await base44.entities.Group.list();
-          const myGroups = groups.filter(g => g.coach_email === user.email);
-          const individualEmails = new Set(myGroups.flatMap(g => g.athlete_emails || []));
+          // Vue individuelle : séances assignées aux athlètes des groupes personnels
+          // du coach ou aux athlètes que l'admin lui a assignés
+          const individualEmails = new Set(await fetchIndividualAthleteEmails(user.email));
           return coachEvents.filter(e =>
             !e.assigned_athletes?.length || e.assigned_athletes.some(email => individualEmails.has(email))
           );

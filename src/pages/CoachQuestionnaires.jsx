@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { fetchAssignedAthleteEmails } from '@/lib/coachAssignments';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,10 +31,12 @@ export default function CoachQuestionnaires() {
   const { data: templates = [], isLoading: loadingTemplates } = useQuery({
     queryKey: ['coach-questionnaire-templates', user?.email, isIndividualView],
     queryFn: async () => {
-      const [allTemplates, clubs, groups] = await Promise.all([
+      const [allTemplates, clubs, groups, assignedEmails] = await Promise.all([
         base44.entities.QuestionnaireTemplate.list(),
         base44.entities.Club.list(),
-        base44.entities.Group.list()
+        base44.entities.Group.list(),
+        // Athlètes assignés par l'admin : vue individuelle uniquement
+        isIndividualView ? fetchAssignedAthleteEmails(user.email) : Promise.resolve([])
       ]);
 
       const coachClubs = isIndividualView ? [] : clubs.filter(c => (c.coach_emails || []).includes(user.email));
@@ -42,7 +45,7 @@ export default function CoachQuestionnaires() {
       );
 
       const coachGroups = groups.filter(g => g.coach_email === user.email);
-      const individualAthleteEmails = new Set(coachGroups.flatMap(g => g.athlete_emails || []));
+      const individualAthleteEmails = new Set([...coachGroups.flatMap(g => g.athlete_emails || []), ...assignedEmails]);
 
       const clubAthleteEmails = new Set(
         coachClubs.flatMap(c => c.athlete_emails || [])
